@@ -1,5 +1,6 @@
 import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/cliente_model.dart';
+import 'package:app_bodega/app/model/factura_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -25,7 +26,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -61,6 +62,32 @@ class DatabaseHelper {
         FOREIGN KEY (categoriaId) REFERENCES categorias (id)
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE facturas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        clienteId INTEGER NOT NULL,
+        nombreCliente TEXT NOT NULL,
+        fecha TEXT NOT NULL,
+        estado TEXT NOT NULL,
+        FOREIGN KEY (clienteId) REFERENCES clientes (id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE item_facturas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        facturaId INTEGER NOT NULL,
+        productoId INTEGER NOT NULL,
+        nombreProducto TEXT NOT NULL,
+        precioUnitario REAL NOT NULL,
+        cantidadTotal INTEGER NOT NULL,
+        cantidadPorSabor TEXT NOT NULL,
+        tieneSabores INTEGER NOT NULL,
+        FOREIGN KEY (facturaId) REFERENCES facturas (id),
+        FOREIGN KEY (productoId) REFERENCES productos (id)
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -85,22 +112,47 @@ class DatabaseHelper {
         )
       ''');
     }
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE facturas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          clienteId INTEGER NOT NULL,
+          nombreCliente TEXT NOT NULL,
+          fecha TEXT NOT NULL,
+          estado TEXT NOT NULL,
+          FOREIGN KEY (clienteId) REFERENCES clientes (id)
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE item_facturas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          facturaId INTEGER NOT NULL,
+          productoId INTEGER NOT NULL,
+          nombreProducto TEXT NOT NULL,
+          precioUnitario REAL NOT NULL,
+          cantidadTotal INTEGER NOT NULL,
+          cantidadPorSabor TEXT NOT NULL,
+          tieneSabores INTEGER NOT NULL,
+          FOREIGN KEY (facturaId) REFERENCES facturas (id),
+          FOREIGN KEY (productoId) REFERENCES productos (id)
+        )
+      ''');
+    }
   }
 
-  // Insertar cliente
+  // MÉTODOS PARA CLIENTES
   Future<int> insertarCliente(ClienteModel cliente) async {
     final db = await database;
     return await db.insert('clientes', cliente.toMap());
   }
 
-  // Obtener todos los clientes
   Future<List<ClienteModel>> obtenerClientes() async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('clientes');
     return List.generate(maps.length, (i) => ClienteModel.fromMap(maps[i]));
   }
 
-  // Obtener cliente por ID
   Future<ClienteModel?> obtenerClientePorId(int id) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -115,7 +167,6 @@ class DatabaseHelper {
     return null;
   }
 
-  // Actualizar cliente
   Future<int> actualizarCliente(ClienteModel cliente) async {
     final db = await database;
     return await db.update(
@@ -126,7 +177,6 @@ class DatabaseHelper {
     );
   }
 
-  // Eliminar cliente
   Future<int> eliminarCliente(int id) async {
     final db = await database;
     return await db.delete(
@@ -136,28 +186,18 @@ class DatabaseHelper {
     );
   }
 
-  // Cerrar la base de datos
-  Future<void> close() async {
-    final db = await database;
-    await db.close();
-  }
-
   // MÉTODOS PARA CATEGORÍAS
-
-  // Insertar categoría
   Future<int> insertarCategoria(CategoriaModel categoria) async {
     final db = await database;
     return await db.insert('categorias', categoria.toMap());
   }
 
-  // Obtener todas las categorías
   Future<List<CategoriaModel>> obtenerCategorias() async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('categorias');
     return List.generate(maps.length, (i) => CategoriaModel.fromMap(maps[i]));
   }
 
-  // Obtener categoría por ID
   Future<CategoriaModel?> obtenerCategoriaPorId(int id) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -172,7 +212,6 @@ class DatabaseHelper {
     return null;
   }
 
-  // Actualizar categoría
   Future<int> actualizarCategoria(CategoriaModel categoria) async {
     final db = await database;
     return await db.update(
@@ -183,7 +222,6 @@ class DatabaseHelper {
     );
   }
 
-  // Eliminar categoría
   Future<int> eliminarCategoria(int id) async {
     final db = await database;
     return await db.delete(
@@ -194,21 +232,17 @@ class DatabaseHelper {
   }
 
   // MÉTODOS PARA PRODUCTOS
-
-  // Insertar producto
   Future<int> insertarProducto(ProductoModel producto) async {
     final db = await database;
     return await db.insert('productos', producto.toMap());
   }
 
-  // Obtener todos los productos
   Future<List<ProductoModel>> obtenerProductos() async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('productos');
     return List.generate(maps.length, (i) => ProductoModel.fromMap(maps[i]));
   }
 
-  // Obtener productos por categoría
   Future<List<ProductoModel>> obtenerProductosPorCategoria(int categoriaId) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -219,7 +253,6 @@ class DatabaseHelper {
     return List.generate(maps.length, (i) => ProductoModel.fromMap(maps[i]));
   }
 
-  // Obtener producto por ID
   Future<ProductoModel?> obtenerProductoPorId(int id) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -234,7 +267,6 @@ class DatabaseHelper {
     return null;
   }
 
-  // Actualizar producto
   Future<int> actualizarProducto(ProductoModel producto) async {
     final db = await database;
     return await db.update(
@@ -245,7 +277,6 @@ class DatabaseHelper {
     );
   }
 
-  // Eliminar producto
   Future<int> eliminarProducto(int id) async {
     final db = await database;
     return await db.delete(
@@ -253,5 +284,219 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  // MÉTODOS PARA FACTURAS
+  Future<int> insertarFactura(FacturaModel factura) async {
+    final db = await database;
+
+    // Insertar la factura
+    final facturaId = await db.insert('facturas', {
+      'clienteId': factura.clienteId as int,
+      'nombreCliente': factura.nombreCliente as String,
+      'fecha': factura.fecha.toIso8601String() as String,
+      'estado': factura.estado as String,
+    });
+
+    // Insertar los items de la factura
+    for (var item in factura.items) {
+      await db.insert('item_facturas', {
+        'facturaId': facturaId as int,
+        'productoId': item.productoId as int,
+        'nombreProducto': item.nombreProducto as String,
+        'precioUnitario': item.precioUnitario as double,
+        'cantidadTotal': item.cantidadTotal as int,
+        'cantidadPorSabor': item.cantidadPorSabor.toString() as String,
+        'tieneSabores': item.tieneSabores ? 1 : 0 as int,
+      });
+    }
+
+    return facturaId;
+  }
+
+  Future<List<FacturaModel>> obtenerFacturas() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('facturas');
+
+    List<FacturaModel> facturas = [];
+    for (var map in maps) {
+      final factura = FacturaModel.fromMap(map);
+
+      // Obtener la información completa del cliente
+      final cliente = await obtenerClientePorId(factura.clienteId);
+
+      // Obtener los items de esta factura
+      final itemMaps = await db.query(
+        'item_facturas',
+        where: 'facturaId = ?',
+        whereArgs: [factura.id],
+      );
+
+      final items = itemMaps.map((itemMap) {
+        // Parsear el cantidadPorSabor del string
+        Map<String, int> cantidadPorSabor = {};
+        final cantidadStr = itemMap['cantidadPorSabor'] as String;
+        if (cantidadStr.isNotEmpty && cantidadStr != '{}') {
+          // Remover las llaves y parsear
+          final content = cantidadStr.replaceAll('{', '').replaceAll('}', '');
+          final pares = content.split(', ');
+          for (var par in pares) {
+            if (par.contains(':')) {
+              final partes = par.split(': ');
+              if (partes.length == 2) {
+                final sabor = partes[0].replaceAll('\'', '').trim();
+                final cantidad = int.tryParse(partes[1]) ?? 0;
+                cantidadPorSabor[sabor] = cantidad;
+              }
+            }
+          }
+        }
+
+        return ItemFacturaModel(
+          productoId: itemMap['productoId'] as int,
+          nombreProducto: itemMap['nombreProducto'] as String,
+          precioUnitario: itemMap['precioUnitario'] as double,
+          cantidadTotal: itemMap['cantidadTotal'] as int,
+          cantidadPorSabor: cantidadPorSabor,
+          tieneSabores: (itemMap['tieneSabores'] as int) == 1,
+        );
+      }).toList();
+
+      facturas.add(FacturaModel(
+        id: factura.id,
+        clienteId: factura.clienteId,
+        nombreCliente: cliente?.nombre ?? factura.nombreCliente,
+        direccionCliente: cliente?.direccion,
+        negocioCliente: cliente?.nombreNegocio,
+        rutaCliente: cliente?.ruta.toString().split('.').last.toUpperCase(),
+        observacionesCliente: cliente?.observaciones,
+        fecha: factura.fecha,
+        items: items,
+        estado: factura.estado,
+      ));
+    }
+
+    return facturas;
+  }
+
+  Future<FacturaModel?> obtenerFacturaPorId(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'facturas',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (maps.isNotEmpty) {
+      final factura = FacturaModel.fromMap(maps[0]);
+
+      // Obtener la información completa del cliente
+      final cliente = await obtenerClientePorId(factura.clienteId);
+
+      // Obtener los items de esta factura
+      final itemMaps = await db.query(
+        'item_facturas',
+        where: 'facturaId = ?',
+        whereArgs: [factura.id],
+      );
+
+      final items = itemMaps.map((itemMap) {
+        // Parsear el cantidadPorSabor del string
+        Map<String, int> cantidadPorSabor = {};
+        final cantidadStr = itemMap['cantidadPorSabor'] as String;
+        if (cantidadStr.isNotEmpty && cantidadStr != '{}') {
+          // Remover las llaves y parsear
+          final content = cantidadStr.replaceAll('{', '').replaceAll('}', '');
+          final pares = content.split(', ');
+          for (var par in pares) {
+            if (par.contains(':')) {
+              final partes = par.split(': ');
+              if (partes.length == 2) {
+                final sabor = partes[0].replaceAll('\'', '').trim();
+                final cantidad = int.tryParse(partes[1]) ?? 0;
+                cantidadPorSabor[sabor] = cantidad;
+              }
+            }
+          }
+        }
+
+        return ItemFacturaModel(
+          productoId: itemMap['productoId'] as int,
+          nombreProducto: itemMap['nombreProducto'] as String,
+          precioUnitario: itemMap['precioUnitario'] as double,
+          cantidadTotal: itemMap['cantidadTotal'] as int,
+          cantidadPorSabor: cantidadPorSabor,
+          tieneSabores: (itemMap['tieneSabores'] as int) == 1,
+        );
+      }).toList();
+
+      return FacturaModel(
+        id: factura.id,
+        clienteId: factura.clienteId,
+        nombreCliente: cliente?.nombre ?? factura.nombreCliente,
+        direccionCliente: cliente?.direccion,
+        negocioCliente: cliente?.nombreNegocio,
+        rutaCliente: cliente?.ruta.toString().split('.').last.toUpperCase(),
+        observacionesCliente: cliente?.observaciones,
+        fecha: factura.fecha,
+        items: items,
+        estado: factura.estado,
+      );
+    }
+    return null;
+  }
+
+  Future<int> actualizarFactura(FacturaModel factura) async {
+    final db = await database;
+
+    // Actualizar la factura
+    await db.update(
+      'facturas',
+      {
+        'clienteId': factura.clienteId as int,
+        'nombreCliente': factura.nombreCliente as String,
+        'fecha': factura.fecha.toIso8601String() as String,
+        'estado': factura.estado as String,
+      },
+      where: 'id = ?',
+      whereArgs: [factura.id],
+    );
+
+    // Eliminar los items antiguos
+    await db.delete(
+      'item_facturas',
+      where: 'facturaId = ?',
+      whereArgs: [factura.id],
+    );
+
+    // Insertar los nuevos items
+    for (var item in factura.items) {
+      await db.insert('item_facturas', {
+        'facturaId': factura.id as int,
+        'productoId': item.productoId as int,
+        'nombreProducto': item.nombreProducto as String,
+        'precioUnitario': item.precioUnitario as double,
+        'cantidadTotal': item.cantidadTotal as int,
+        'cantidadPorSabor': item.cantidadPorSabor.toString() as String,
+        'tieneSabores': item.tieneSabores ? 1 : 0 as int,
+      });
+    }
+
+    return 1;
+  }
+
+  Future<int> eliminarFactura(int id) async {
+    final db = await database;
+    return await db.delete(
+      'facturas',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Cerrar la base de datos
+  Future<void> close() async {
+    final db = await database;
+    await db.close();
   }
 }

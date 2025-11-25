@@ -194,7 +194,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
                     'Sabores',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  if (_saborControllers.length < 5)
+                  if (_saborControllers.length < 10)
                     IconButton(
                       icon: const Icon(Icons.add_circle, color: Colors.blue),
                       onPressed: _agregarSabor,

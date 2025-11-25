@@ -17,6 +17,7 @@ class _ClientesPageState extends State<ClientesPage> {
 
   List<ClienteModel> clientes = [];
   List<ClienteModel> clientesFiltrados = [];
+  String? _rutaSeleccionada;
 
   @override
   void initState() {
@@ -28,21 +29,24 @@ class _ClientesPageState extends State<ClientesPage> {
     final clientesCargados = await _dbHelper.obtenerClientes();
     setState(() {
       clientes = clientesCargados;
-      clientesFiltrados = clientes;
+      _filtrarClientes('');
     });
   }
 
   void _filtrarClientes(String query) {
     setState(() {
-      if (query.isEmpty) {
-        clientesFiltrados = clientes;
-      } else {
-        clientesFiltrados = clientes
-            .where((cliente) =>
-        cliente.nombre.toLowerCase().contains(query.toLowerCase()) ||
-            cliente.nombreNegocio.toLowerCase().contains(query.toLowerCase()))
-            .toList();
-      }
+      clientesFiltrados = clientes.where((cliente) {
+        // Filtrar por búsqueda
+        final coincideBusqueda = query.isEmpty ||
+            cliente.nombre.toLowerCase().contains(query.toLowerCase()) ||
+            cliente.nombreNegocio.toLowerCase().contains(query.toLowerCase());
+
+        // Filtrar por ruta
+        final coincideRuta = _rutaSeleccionada == null ||
+            cliente.ruta.toString().split('.').last == _rutaSeleccionada;
+
+        return coincideBusqueda && coincideRuta;
+      }).toList();
     });
   }
 
@@ -76,6 +80,90 @@ class _ClientesPageState extends State<ClientesPage> {
               ),
             ),
           ),
+
+          // Fila de rutas
+          SizedBox(
+            height: 50,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FilterChip(
+                    label: const Text('Todas'),
+                    selected: _rutaSeleccionada == null,
+                    onSelected: (selected) {
+                      setState(() {
+                        _rutaSeleccionada = null;
+                        _filtrarClientes(_searchController.text);
+                      });
+                    },
+                    backgroundColor: Colors.grey[200],
+                    selectedColor: Colors.blue,
+                    labelStyle: TextStyle(
+                      color: _rutaSeleccionada == null ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FilterChip(
+                    label: const Text('Ruta 1'),
+                    selected: _rutaSeleccionada == 'ruta1',
+                    onSelected: (selected) {
+                      setState(() {
+                        _rutaSeleccionada = 'ruta1';
+                        _filtrarClientes(_searchController.text);
+                      });
+                    },
+                    backgroundColor: Colors.grey[200],
+                    selectedColor: Colors.blue,
+                    labelStyle: TextStyle(
+                      color: _rutaSeleccionada == 'ruta1' ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FilterChip(
+                    label: const Text('Ruta 2'),
+                    selected: _rutaSeleccionada == 'ruta2',
+                    onSelected: (selected) {
+                      setState(() {
+                        _rutaSeleccionada = 'ruta2';
+                        _filtrarClientes(_searchController.text);
+                      });
+                    },
+                    backgroundColor: Colors.grey[200],
+                    selectedColor: Colors.blue,
+                    labelStyle: TextStyle(
+                      color: _rutaSeleccionada == 'ruta2' ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FilterChip(
+                    label: const Text('Ruta 3'),
+                    selected: _rutaSeleccionada == 'ruta3',
+                    onSelected: (selected) {
+                      setState(() {
+                        _rutaSeleccionada = 'ruta3';
+                        _filtrarClientes(_searchController.text);
+                      });
+                    },
+                    backgroundColor: Colors.grey[200],
+                    selectedColor: Colors.blue,
+                    labelStyle: TextStyle(
+                      color: _rutaSeleccionada == 'ruta3' ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Lista de clientes
           Expanded(
             child: clientesFiltrados.isEmpty

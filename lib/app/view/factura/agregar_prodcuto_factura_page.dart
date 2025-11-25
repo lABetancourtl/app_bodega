@@ -1,4 +1,5 @@
 import 'package:app_bodega/app/datasources/database_helper.dart';
+import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:flutter/material.dart';
@@ -14,23 +15,47 @@ class AgregarProductoFacturaPage extends StatefulWidget {
 class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
+  List<CategoriaModel> categorias = [];
   List<ProductoModel> productos = [];
+  List<ProductoModel> productosFiltrados = [];
   ProductoModel? productoSeleccionado;
+  int? _categoriaSeleccionadaId;
 
   final TextEditingController _cantidadTotalController = TextEditingController();
   Map<String, int> cantidadPorSabor = {};
-  Map<String, TextEditingController> controllersPorSabor = {}; // Nuevo: Controladores para cada sabor
+  Map<String, TextEditingController> controllersPorSabor = {};
 
   @override
   void initState() {
     super.initState();
-    _cargarProductos();
+    _cargarCategorias();
   }
 
-  void _cargarProductos() async {
-    final productosCargados = await _dbHelper.obtenerProductos();
+  void _cargarCategorias() async {
+    final categoriasCargadas = await _dbHelper.obtenerCategorias();
+    setState(() {
+      categorias = categoriasCargadas;
+      if (categorias.isNotEmpty) {
+        _categoriaSeleccionadaId = categorias[0].id;
+        _cargarProductos(categorias[0].id!);
+      }
+    });
+  }
+
+  void _cargarProductos(int categoriaId) async {
+    final productosCargados = await _dbHelper.obtenerProductosPorCategoria(categoriaId);
     setState(() {
       productos = productosCargados;
+      productosFiltrados = productosCargados;
+      productoSeleccionado = null;
+      _cantidadTotalController.clear();
+      cantidadPorSabor.clear();
+
+      // Limpiar controladores anteriores
+      for (var controller in controllersPorSabor.values) {
+        controller.dispose();
+      }
+      controllersPorSabor.clear();
     });
   }
 
@@ -127,13 +152,47 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Fila de categorías
+            if (categorias.isNotEmpty)
+              SizedBox(
+                height: 50,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: categorias.length,
+                  itemBuilder: (context, index) {
+                    final categoria = categorias[index];
+                    final isSelected = _categoriaSeleccionadaId == categoria.id;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: FilterChip(
+                        label: Text(categoria.nombre),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            _categoriaSeleccionadaId = categoria.id;
+                            _cargarProductos(categoria.id!);
+                          });
+                        },
+                        backgroundColor: Colors.grey[200],
+                        selectedColor: Colors.blue,
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : Colors.black,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 16),
+
             // Lista de productos
             const Text(
               'Selecciona un producto',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            ...productos.map((producto) {
+            ...productosFiltrados.map((producto) {
               final isSelected = productoSeleccionado?.id == producto.id;
               return GestureDetector(
                 onTap: () => _seleccionarProducto(producto),
@@ -182,7 +241,6 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
                 ),
                 const SizedBox(height: 12),
                 ...productoSeleccionado!.sabores.asMap().entries.map((entry) {
-                  int idx = entry.key;
                   String sabor = entry.value;
                   TextEditingController controller = controllersPorSabor[sabor]!;
 

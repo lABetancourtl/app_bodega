@@ -1,23 +1,26 @@
 import 'package:app_bodega/app/datasources/database_helper.dart';
-import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
 import 'package:app_bodega/app/view/factura/agregar_prodcuto_factura_page.dart';
 import 'package:flutter/material.dart';
 
-import 'seleccionar_cliente_page.dart';
+class EditarFacturaPage extends StatefulWidget {
+  final FacturaModel factura;
 
-class CrearFacturaPage extends StatefulWidget {
-  const CrearFacturaPage({super.key});
+  const EditarFacturaPage({super.key, required this.factura});
 
   @override
-  State<CrearFacturaPage> createState() => _CrearFacturaPageState();
+  State<EditarFacturaPage> createState() => _EditarFacturaPageState();
 }
 
-class _CrearFacturaPageState extends State<CrearFacturaPage> {
+class _EditarFacturaPageState extends State<EditarFacturaPage> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
+  late List<ItemFacturaModel> items;
 
-  ClienteModel? clienteSeleccionado;
-  List<ItemFacturaModel> items = [];
+  @override
+  void initState() {
+    super.initState();
+    items = List.from(widget.factura.items);
+  }
 
   String _formatearPrecio(double precio) {
     final precioInt = precio.toInt();
@@ -27,27 +30,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
     );
   }
 
-  void _seleccionarCliente() async {
-    final cliente = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SeleccionarClientePage()),
-    );
-
-    if (cliente != null) {
-      setState(() {
-        clienteSeleccionado = cliente;
-      });
-    }
-  }
-
   void _agregarProducto() async {
-    if (clienteSeleccionado == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor selecciona un cliente primero')),
-      );
-      return;
-    }
-
     final nuevoItem = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -68,44 +51,22 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
     });
   }
 
-  void _guardarFactura() async {
-    if (clienteSeleccionado == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor selecciona un cliente')),
-      );
-      return;
-    }
-
-    if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor agrega al menos un producto')),
-      );
-      return;
-    }
-
-    final rutaTexto = clienteSeleccionado!.ruta.toString();
-    final rutaNombre = rutaTexto.contains('ruta1') ? 'RUTA 1' :
-    rutaTexto.contains('ruta2') ? 'RUTA 2' :
-    rutaTexto.contains('ruta3') ? 'RUTA 3' : 'SIN RUTA';
-
-    final factura = FacturaModel(
-      clienteId: clienteSeleccionado!.id!,
-      nombreCliente: clienteSeleccionado!.nombre,
-      direccionCliente: clienteSeleccionado!.direccion,
-      negocioCliente: clienteSeleccionado!.nombreNegocio,
-      rutaCliente: rutaNombre,
-      observacionesCliente: clienteSeleccionado!.observaciones,
-      fecha: DateTime.now(),
+  void _guardarCambios() async {
+    final facturaActualizada = FacturaModel(
+      id: widget.factura.id,
+      clienteId: widget.factura.clienteId,
+      nombreCliente: widget.factura.nombreCliente,
+      fecha: widget.factura.fecha,
       items: items,
-      estado: 'pendiente',
+      estado: widget.factura.estado,
     );
 
     try {
-      await _dbHelper.insertarFactura(factura);
+      await _dbHelper.actualizarFactura(facturaActualizada);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Factura guardada para ${clienteSeleccionado!.nombre}')),
+          SnackBar(content: Text('Factura actualizada para ${widget.factura.nombreCliente}')),
         );
         Future.delayed(const Duration(seconds: 1), () {
           Navigator.pop(context);
@@ -124,12 +85,12 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nueva Factura'),
+        title: const Text('Editar Factura'),
         actions: [
           IconButton(
             icon: const Icon(Icons.check),
-            onPressed: _guardarFactura,
-            tooltip: 'Guardar factura',
+            onPressed: _guardarCambios,
+            tooltip: 'Guardar cambios',
           ),
         ],
       ),
@@ -137,39 +98,41 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         children: [
           Column(
             children: [
-              // Seleccionar Cliente
+              // Información del cliente (no editable)
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: GestureDetector(
-                  onTap: _seleccionarCliente,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.blue),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Cliente',
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blue),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Cliente',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          Text(
+                            widget.factura.nombreCliente,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
-                            Text(
-                              clienteSeleccionado?.nombre ?? 'Selecciona un cliente',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Icon(Icons.arrow_forward),
-                      ],
-                    ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Fecha: ${widget.factura.fecha.day}/${widget.factura.fecha.month}/${widget.factura.fecha.year}',
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                      const Icon(Icons.lock, color: Colors.grey),
+                    ],
                   ),
                 ),
               ),
@@ -212,7 +175,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                           children: [
                             if (item.tieneSabores)
                               Text(
-                                'Sabores: ${item.cantidadPorSabor.entries.map((e) => '${e.key} (${e.value})').join(', ')}',
+                                'Sabores: ${item.cantidadPorSabor.entries.where((e) => e.value > 0).map((e) => '${e.key} (${e.value})').join(', ')}',
                                 style: const TextStyle(fontSize: 12),
                               )
                             else
@@ -274,7 +237,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                     ),
                   ],
                 ),
-              )
+              ),
             ],
           ),
 

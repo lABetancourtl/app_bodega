@@ -44,6 +44,10 @@ class FacturaModel {
   final int? id;
   final int clienteId;
   final String nombreCliente;
+  final String? direccionCliente;
+  final String? negocioCliente;
+  final String? rutaCliente;
+  final String? observacionesCliente;
   final DateTime fecha;
   final List<ItemFacturaModel> items;
   final String estado; // pendiente, completada, cancelada
@@ -52,6 +56,10 @@ class FacturaModel {
     this.id,
     required this.clienteId,
     required this.nombreCliente,
+    this.direccionCliente,
+    this.negocioCliente,
+    this.rutaCliente,
+    this.observacionesCliente,
     required this.fecha,
     required this.items,
     this.estado = 'pendiente',
