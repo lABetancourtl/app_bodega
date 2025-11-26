@@ -30,21 +30,32 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
+      bottomNavigationBar: NavigationBar(
+        height: 65,
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _onItemTapped,
+        elevation: 8,
+        backgroundColor: Colors.white30,
+        indicatorColor: Colors.blue.shade100.withOpacity(0.6),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.people_outlined),
+            selectedIcon: Icon(Icons.people),
             label: 'Clientes',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_drink),
+          NavigationDestination(
+            icon: Icon(Icons.local_drink_outlined),
+            selectedIcon: Icon(Icons.local_drink),
             label: 'Productos',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt),
-            label: 'Factura',
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: 'Facturas',
           ),
         ],
       ),

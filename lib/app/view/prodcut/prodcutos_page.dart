@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
@@ -50,6 +52,38 @@ class _ProductosPageState extends State<ProductosPage> {
     return precioInt.toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
           (match) => '.',
+    );
+  }
+
+  Widget _construirImagenProducto(String? imagenPath) {
+    if (imagenPath != null && imagenPath.isNotEmpty) {
+      final file = File(imagenPath);
+      if (file.existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            width: 60,
+            height: 60,
+          ),
+        );
+      }
+    }
+
+    // Imagen por defecto si no existe
+    return Container(
+      width: 60,
+      height: 60,
+      decoration: BoxDecoration(
+        color: Colors.blue[100],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        Icons.local_drink,
+        color: Colors.blue[600],
+        size: 32,
+      ),
     );
   }
 
@@ -317,7 +351,7 @@ class _ProductosPageState extends State<ProductosPage> {
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   child: ListTile(
-                    leading: const Icon(Icons.local_drink, color: Colors.blue),
+                    leading: _construirImagenProducto(producto.imagenPath),
                     title: Text(
                       producto.nombre,
                       style: const TextStyle(fontWeight: FontWeight.bold),
@@ -342,7 +376,6 @@ class _ProductosPageState extends State<ProductosPage> {
                     ),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
-                      // Mostrar opciones de editar/eliminar
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(

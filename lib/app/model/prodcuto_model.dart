@@ -5,6 +5,7 @@ class ProductoModel {
   final List<String> sabores;
   final double precio;
   final int? cantidadPorPaca;
+  final String? imagenPath;
 
   ProductoModel({
     this.id,
@@ -13,6 +14,7 @@ class ProductoModel {
     required this.sabores,
     required this.precio,
     this.cantidadPorPaca,
+    this.imagenPath,
   });
 
   // Convertir a Map (para guardar en BD)
@@ -24,6 +26,7 @@ class ProductoModel {
       'sabores': sabores.join(','), // Guardar como string separado por comas
       'precio': precio,
       'cantidadPorPaca': cantidadPorPaca,
+      'imagenPath': imagenPath,
     };
   }
 
@@ -36,6 +39,7 @@ class ProductoModel {
       sabores: (map['sabores'] as String).split(','),
       precio: map['precio'],
       cantidadPorPaca: map['cantidadPorPaca'],
+      imagenPath: map['imagenPath'],
     );
   }
 
@@ -47,6 +51,7 @@ class ProductoModel {
     List<String>? sabores,
     double? precio,
     int? cantidadPorPaca,
+    String? imagenPath,
   }) {
     return ProductoModel(
       id: id ?? this.id,
@@ -55,9 +60,10 @@ class ProductoModel {
       sabores: sabores ?? this.sabores,
       precio: precio ?? this.precio,
       cantidadPorPaca: cantidadPorPaca ?? this.cantidadPorPaca,
+      imagenPath: imagenPath ?? this.imagenPath,
     );
   }
 
   @override
-  String toString() => 'ProductoModel(id: $id, categoriaId: $categoriaId, nombre: $nombre, sabores: $sabores, precio: $precio, cantidadPorPaca: $cantidadPorPaca)';
+  String toString() => 'ProductoModel(id: $id, categoriaId: $categoriaId, nombre: $nombre, sabores: $sabores, precio: $precio, cantidadPorPaca: $cantidadPorPaca, imagenPath: $imagenPath)';
 }

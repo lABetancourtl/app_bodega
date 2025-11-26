@@ -60,7 +60,16 @@ class _ClientesPageState extends State<ClientesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Clientes'),
+        title: const Text(
+          'Clientes',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        elevation: 1,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.blue[800],
       ),
       body: Column(
         children: [
@@ -167,8 +176,31 @@ class _ClientesPageState extends State<ClientesPage> {
           // Lista de clientes
           Expanded(
             child: clientesFiltrados.isEmpty
-                ? const Center(
-              child: Text('No hay clientes'),
+                ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.people_outline,
+                  size: 80,
+                  color: Colors.grey[300],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No hay clientes',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.grey[500],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Agrega tu primer cliente',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                  ),
+                ),
+              ],
             )
                 : ListView.builder(
               itemCount: clientesFiltrados.length,

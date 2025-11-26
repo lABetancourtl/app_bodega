@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class EditarProductoPage extends StatefulWidget {
   final ProductoModel producto;
@@ -18,6 +21,7 @@ class EditarProductoPage extends StatefulWidget {
 
 class _EditarProductoPageState extends State<EditarProductoPage> {
   final _formKey = GlobalKey<FormState>();
+  final ImagePicker _imagePicker = ImagePicker();
 
   late TextEditingController _nombreController;
   late TextEditingController _precioController;
@@ -25,6 +29,7 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
 
   late CategoriaModel _categoriaSeleccionada;
   late List<TextEditingController> _saborControllers;
+  File? _imagenSeleccionada;
 
   @override
   void initState() {
@@ -40,6 +45,15 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
     _saborControllers = widget.producto.sabores
         .map((sabor) => TextEditingController(text: sabor))
         .toList();
+
+    // Si la imagen existe y es válida, establecerla
+    if (widget.producto.imagenPath != null &&
+        widget.producto.imagenPath!.isNotEmpty) {
+      final file = File(widget.producto.imagenPath!);
+      if (file.existsSync()) {
+        _imagenSeleccionada = file;
+      }
+    }
   }
 
   @override
@@ -66,6 +80,122 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
     });
   }
 
+  Future<void> _tomarFoto() async {
+    try {
+      final XFile? foto = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+
+      if (foto != null) {
+        setState(() {
+          _imagenSeleccionada = File(foto.path);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al tomar la foto')),
+        );
+      }
+    }
+  }
+
+  Future<void> _seleccionarDelGalerista() async {
+    try {
+      final XFile? imagen = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+
+      if (imagen != null) {
+        setState(() {
+          _imagenSeleccionada = File(imagen.path);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al seleccionar la imagen')),
+        );
+      }
+    }
+  }
+
+  void _verImagenCompleta() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text('Imagen del Producto'),
+            centerTitle: true,
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              boundaryMargin: const EdgeInsets.all(20),
+              minScale: 0.5,
+              maxScale: 4,
+              child: Image.file(
+                _imagenSeleccionada!,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _mostrarOpcionesImagen() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Tomar foto'),
+              onTap: () {
+                Navigator.pop(context);
+                _tomarFoto();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.image),
+              title: const Text('Seleccionar de galería'),
+              onTap: () {
+                Navigator.pop(context);
+                _seleccionarDelGalerista();
+              },
+            ),
+            if (_imagenSeleccionada != null)
+              ListTile(
+                leading: const Icon(Icons.visibility,),
+                title: const Text('Ver imagen',),
+                onTap: () {
+                  Navigator.pop(context);
+                  _verImagenCompleta();
+                },
+              ),
+            if (_imagenSeleccionada != null)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Eliminar imagen',
+                    style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _imagenSeleccionada = null;
+                  });
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _guardarProducto() {
     if (_formKey.currentState!.validate()) {
       final sabores = _saborControllers
@@ -89,6 +219,7 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
         cantidadPorPaca: _cantidadPacaController.text.isEmpty
             ? null
             : int.parse(_cantidadPacaController.text),
+        imagenPath: _imagenSeleccionada?.path,
       );
 
       Navigator.pop(context, productoActualizado);
@@ -108,6 +239,44 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Sección de imagen
+              GestureDetector(
+                onTap: _mostrarOpcionesImagen,
+                child: Container(
+                  width: double.infinity,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blue, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey[100],
+                  ),
+                  child: _imagenSeleccionada != null
+                      ? ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.file(
+                      _imagenSeleccionada!,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                      : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_a_photo,
+                        size: 48,
+                        color: Colors.blue[300],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Toca para cambiar imagen',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
               // Categoría
               DropdownButtonFormField<CategoriaModel>(
                 value: _categoriaSeleccionada,

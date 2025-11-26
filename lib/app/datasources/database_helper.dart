@@ -26,7 +26,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -59,6 +59,7 @@ class DatabaseHelper {
         sabores TEXT NOT NULL,
         precio REAL NOT NULL,
         cantidadPorPaca INTEGER,
+        imagenPath TEXT,
         FOREIGN KEY (categoriaId) REFERENCES categorias (id)
       )
     ''');
@@ -138,6 +139,10 @@ class DatabaseHelper {
           FOREIGN KEY (productoId) REFERENCES productos (id)
         )
       ''');
+    }
+    if (oldVersion < 5) {
+      // Agregar la columna imagenPath a productos
+      await db.execute('ALTER TABLE productos ADD COLUMN imagenPath TEXT');
     }
   }
 
