@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../backup_page.dart';
 import '../client/clientes_page.dart';
 import '../factura/factura_page.dart';
 import '../prodcut/prodcutos_page.dart';
@@ -26,9 +27,27 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _abrirBackup() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BackupPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('App Bodega'),
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.backup),
+            tooltip: 'Respaldo y Sincronización',
+            onPressed: _abrirBackup,
+          ),
+        ],
+      ),
       body: _pages[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         height: 65,

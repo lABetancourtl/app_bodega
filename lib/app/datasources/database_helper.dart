@@ -504,4 +504,9 @@ class DatabaseHelper {
     final db = await database;
     await db.close();
   }
+
+  // Método para resetear la conexión (para cuando se importa un backup)
+  static void resetearConexion() {
+    _database = null;
+  }
 }
