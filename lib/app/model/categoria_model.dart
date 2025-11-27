@@ -1,5 +1,5 @@
 class CategoriaModel {
-  final int? id;
+  final String? id;
   final String nombre;
 
   CategoriaModel({
@@ -7,25 +7,24 @@ class CategoriaModel {
     required this.nombre,
   });
 
-  // Convertir a Map (para guardar en BD)
+  // Convertir a Map (para guardar en Firestore)
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'nombre': nombre,
     };
   }
 
-  // Crear desde Map (para leer de BD)
+  // Crear desde Map (para leer de Firestore)
   factory CategoriaModel.fromMap(Map<String, dynamic> map) {
     return CategoriaModel(
       id: map['id'],
-      nombre: map['nombre'],
+      nombre: map['nombre'] as String,
     );
   }
 
   // Copiar con cambios
   CategoriaModel copyWith({
-    int? id,
+    String? id,
     String? nombre,
   }) {
     return CategoriaModel(

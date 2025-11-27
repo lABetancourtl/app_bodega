@@ -21,7 +21,7 @@ class _ProductosPageState extends State<ProductosPage> {
 
   List<CategoriaModel> categorias = [];
   List<ProductoModel> productos = [];
-  int? _categoriasSeleccionadaId;
+  String? _categoriasSeleccionadaId;
 
   @override
   void initState() {
@@ -30,21 +30,41 @@ class _ProductosPageState extends State<ProductosPage> {
   }
 
   void _cargarCategorias() async {
-    final categoriasCargadas = await _dbHelper.obtenerCategorias();
-    setState(() {
-      categorias = categoriasCargadas;
-      if (categorias.isNotEmpty) {
-        _categoriasSeleccionadaId = categorias[0].id;
-        _cargarProductos(categorias[0].id!);
+    try {
+      final categoriasCargadas = await _dbHelper.obtenerCategorias();
+      if (mounted) {
+        setState(() {
+          categorias = categoriasCargadas;
+          if (categorias.isNotEmpty) {
+            _categoriasSeleccionadaId = categorias[0].id;
+            _cargarProductos(categorias[0].id!);
+          }
+        });
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar categorías: $e')),
+        );
+      }
+    }
   }
 
-  void _cargarProductos(int categoriaId) async {
-    final productosCargados = await _dbHelper.obtenerProductosPorCategoria(categoriaId);
-    setState(() {
-      productos = productosCargados;
-    });
+  void _cargarProductos(String categoriaId) async {
+    try {
+      final productosCargados = await _dbHelper.obtenerProductosPorCategoria(categoriaId);
+      if (mounted) {
+        setState(() {
+          productos = productosCargados;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar productos: $e')),
+        );
+      }
+    }
   }
 
   String _formatearPrecio(double precio) {
@@ -58,6 +78,7 @@ class _ProductosPageState extends State<ProductosPage> {
   Widget _construirImagenProducto(String? imagenPath) {
     if (imagenPath != null && imagenPath.isNotEmpty) {
       final file = File(imagenPath);
+
       if (file.existsSync()) {
         return ClipRRect(
           borderRadius: BorderRadius.circular(8),
@@ -66,12 +87,18 @@ class _ProductosPageState extends State<ProductosPage> {
             fit: BoxFit.cover,
             width: 60,
             height: 60,
+            errorBuilder: (context, error, stackTrace) {
+              return _imagenPorDefecto();
+            },
           ),
         );
       }
     }
 
-    // Imagen por defecto si no existe
+    return _imagenPorDefecto();
+  }
+
+  Widget _imagenPorDefecto() {
     return Container(
       width: 60,
       height: 60,
@@ -96,13 +123,21 @@ class _ProductosPageState extends State<ProductosPage> {
     );
 
     if (nuevaCategoria != null) {
-      await _dbHelper.insertarCategoria(nuevaCategoria);
-      _cargarCategorias();
+      try {
+        await _dbHelper.insertarCategoria(nuevaCategoria);
+        _cargarCategorias();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Categoría ${nuevaCategoria.nombre} creada')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Categoría ${nuevaCategoria.nombre} creada')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
       }
     }
   }
@@ -116,13 +151,21 @@ class _ProductosPageState extends State<ProductosPage> {
     );
 
     if (categoriaActualizada != null) {
-      await _dbHelper.actualizarCategoria(categoriaActualizada);
-      _cargarCategorias();
+      try {
+        await _dbHelper.actualizarCategoria(categoriaActualizada);
+        _cargarCategorias();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Categoría ${categoriaActualizada.nombre} actualizada')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Categoría ${categoriaActualizada.nombre} actualizada')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
       }
     }
   }
@@ -140,14 +183,23 @@ class _ProductosPageState extends State<ProductosPage> {
           ),
           TextButton(
             onPressed: () async {
-              await _dbHelper.eliminarCategoria(categoria.id!);
-              _cargarCategorias();
-              Navigator.pop(context);
+              try {
+                await _dbHelper.eliminarCategoria(categoria.id!);
+                _cargarCategorias();
+                Navigator.pop(context);
 
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Categoría ${categoria.nombre} eliminada')),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Categoría ${categoria.nombre} eliminada')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
               }
             },
             child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
@@ -166,13 +218,21 @@ class _ProductosPageState extends State<ProductosPage> {
     );
 
     if (nuevoProducto != null) {
-      await _dbHelper.insertarProducto(nuevoProducto);
-      _cargarProductos(_categoriasSeleccionadaId!);
+      try {
+        await _dbHelper.insertarProducto(nuevoProducto);
+        _cargarProductos(_categoriasSeleccionadaId!);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Producto ${nuevoProducto.nombre} creado')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Producto ${nuevoProducto.nombre} creado')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
       }
     }
   }
@@ -189,13 +249,21 @@ class _ProductosPageState extends State<ProductosPage> {
     );
 
     if (productoActualizado != null) {
-      await _dbHelper.actualizarProducto(productoActualizado);
-      _cargarProductos(_categoriasSeleccionadaId!);
+      try {
+        await _dbHelper.actualizarProducto(productoActualizado);
+        _cargarProductos(_categoriasSeleccionadaId!);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Producto ${productoActualizado.nombre} actualizado')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Producto ${productoActualizado.nombre} actualizado')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
       }
     }
   }
@@ -213,14 +281,23 @@ class _ProductosPageState extends State<ProductosPage> {
           ),
           TextButton(
             onPressed: () async {
-              await _dbHelper.eliminarProducto(producto.id!);
-              _cargarProductos(_categoriasSeleccionadaId!);
-              Navigator.pop(context);
+              try {
+                await _dbHelper.eliminarProducto(producto.id!);
+                _cargarProductos(_categoriasSeleccionadaId!);
+                Navigator.pop(context);
 
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Producto ${producto.nombre} eliminado')),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Producto ${producto.nombre} eliminado')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
               }
             },
             child: const Text('Eliminar', style: TextStyle(color: Colors.red)),

@@ -39,11 +39,11 @@ class _ClientesPageState extends State<ClientesPage> {
         // Filtrar por búsqueda
         final coincideBusqueda = query.isEmpty ||
             cliente.nombre.toLowerCase().contains(query.toLowerCase()) ||
-            cliente.nombreNegocio.toLowerCase().contains(query.toLowerCase());
+            (cliente.nombreNegocio?.toLowerCase().contains(query.toLowerCase()) ?? false);  // ✅ Manejo de null
 
         // Filtrar por ruta
         final coincideRuta = _rutaSeleccionada == null ||
-            cliente.ruta.toString().split('.').last == _rutaSeleccionada;
+            (cliente.ruta?.toString().split('.').last == _rutaSeleccionada);  // ✅ Manejo de null
 
         return coincideBusqueda && coincideRuta;
       }).toList();
@@ -217,13 +217,13 @@ class _ClientesPageState extends State<ClientesPage> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(cliente.nombreNegocio),
+                        Text(cliente.nombreNegocio ?? 'Sin negocio'),  // ✅ Manejo de null
                         Text(
-                          cliente.direccion,
+                          cliente.direccion ?? 'Sin dirección',  // ✅ Manejo de null
                           style: const TextStyle(fontSize: 12, color: Colors.grey),
                         ),
                         Text(
-                          'Ruta: ${cliente.ruta.toString().split('.').last.toUpperCase()}',
+                          'Ruta: ${cliente.ruta?.toString().split('.').last.toUpperCase() ?? 'Sin ruta'}',  // ✅ Manejo de null
                           style: const TextStyle(fontSize: 12, color: Colors.blue),
                         ),
                       ],
@@ -241,9 +241,11 @@ class _ClientesPageState extends State<ClientesPage> {
                         await _dbHelper.actualizarCliente(clienteActualizado);
                         _cargarClientes();
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Cliente ${clienteActualizado.nombre} actualizado')),
-                        );
+                        if (mounted) {  // ✅ Verificar si el widget sigue montado
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Cliente ${clienteActualizado.nombre} actualizado')),
+                          );
+                        }
                       }
                     },
                   ),
@@ -264,9 +266,11 @@ class _ClientesPageState extends State<ClientesPage> {
             await _dbHelper.insertarCliente(nuevoCliente);
             _cargarClientes();
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Cliente ${nuevoCliente.nombre} agregado')),
-            );
+            if (mounted) {  // ✅ Verificar si el widget sigue montado
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Cliente ${nuevoCliente.nombre} agregado')),
+              );
+            }
           }
         },
         child: const Icon(Icons.add),

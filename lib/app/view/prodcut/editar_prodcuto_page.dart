@@ -48,7 +48,7 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
 
     // Si la imagen existe y es válida, establecerla
     if (widget.producto.imagenPath != null &&
-        widget.producto.imagenPath!.isNotEmpty) {
+          widget.producto.imagenPath!.isNotEmpty) {
       final file = File(widget.producto.imagenPath!);
       if (file.existsSync()) {
         _imagenSeleccionada = file;

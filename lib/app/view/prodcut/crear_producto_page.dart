@@ -5,6 +5,8 @@ import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../service/storage_helper.dart';
+
 class CrearProductoPage extends StatefulWidget {
   final List<CategoriaModel> categorias;
 
@@ -15,6 +17,9 @@ class CrearProductoPage extends StatefulWidget {
 }
 
 class _CrearProductoPageState extends State<CrearProductoPage> {
+  final StorageHelper _storageHelper = StorageHelper();
+  File? _imagenSeleccionada;
+  bool _subiendoImagen = false;
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -24,7 +29,6 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
 
   CategoriaModel? _categoriaSeleccionada;
   List<TextEditingController> _saborControllers = [TextEditingController()];
-  File? _imagenSeleccionada;
 
   @override
   void initState() {
@@ -139,29 +143,42 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
     );
   }
 
-  void _guardarProducto() {
+  void _guardarProducto() async {
     if (_formKey.currentState!.validate()) {
-      final sabores = _saborControllers
-          .where((controller) => controller.text.isNotEmpty)
-          .map((controller) => controller.text)
-          .toList();
+      String? imagenUrl;
 
-      if (sabores.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor ingresa al menos un sabor')),
-        );
-        return;
+      // Si hay imagen seleccionada, subirla primero
+      if (_imagenSeleccionada != null) {
+        setState(() => _subiendoImagen = true);
+
+        try {
+          imagenUrl = await _storageHelper.subirImagenProducto(_imagenSeleccionada!);
+        } catch (e) {
+          setState(() => _subiendoImagen = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al subir imagen: $e')),
+          );
+          return;
+        }
+
+        setState(() => _subiendoImagen = false);
       }
 
+      // Obtener sabores de los controladores
+      final sabores = _saborControllers
+          .map((controller) => controller.text.trim())
+          .where((sabor) => sabor.isNotEmpty)
+          .toList();
+
       final nuevoProducto = ProductoModel(
-        categoriaId: _categoriaSeleccionada!.id!,
         nombre: _nombreController.text,
+        categoriaId: _categoriaSeleccionada!.id!,
         sabores: sabores,
         precio: double.parse(_precioController.text),
         cantidadPorPaca: _cantidadPacaController.text.isEmpty
             ? null
             : int.parse(_cantidadPacaController.text),
-        imagenPath: _imagenSeleccionada?.path,
+        imagenPath: imagenUrl,
       );
 
       Navigator.pop(context, nuevoProducto);

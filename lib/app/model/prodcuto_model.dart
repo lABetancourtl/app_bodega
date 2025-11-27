@@ -1,7 +1,7 @@
 class ProductoModel {
-  final int? id;
-  final int categoriaId;
+  final String? id;  // ← Cambiar de int? a String?
   final String nombre;
+  final String categoriaId;  // ← Ya debe ser String
   final List<String> sabores;
   final double precio;
   final int? cantidadPorPaca;
@@ -9,45 +9,41 @@ class ProductoModel {
 
   ProductoModel({
     this.id,
-    required this.categoriaId,
     required this.nombre,
+    required this.categoriaId,
     required this.sabores,
     required this.precio,
     this.cantidadPorPaca,
     this.imagenPath,
   });
 
-  // Convertir a Map (para guardar en BD)
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
-      'categoriaId': categoriaId,
       'nombre': nombre,
-      'sabores': sabores.join(','), // Guardar como string separado por comas
+      'categoriaId': categoriaId,
+      'sabores': sabores,
       'precio': precio,
       'cantidadPorPaca': cantidadPorPaca,
       'imagenPath': imagenPath,
     };
   }
 
-  // Crear desde Map (para leer de BD)
-  factory ProductoModel.fromMap(Map<String, dynamic> map) {
+  factory ProductoModel.fromMap(Map<String, dynamic> map, String docId) {
     return ProductoModel(
-      id: map['id'],
-      categoriaId: map['categoriaId'],
-      nombre: map['nombre'],
-      sabores: (map['sabores'] as String).split(','),
-      precio: map['precio'],
-      cantidadPorPaca: map['cantidadPorPaca'],
-      imagenPath: map['imagenPath'],
+      id: docId,  // ← Pasar el ID del documento
+      nombre: map['nombre'] as String,
+      categoriaId: map['categoriaId'] as String,
+      sabores: List<String>.from(map['sabores'] as List),
+      precio: (map['precio'] as num).toDouble(),
+      cantidadPorPaca: map['cantidadPorPaca'] as int?,
+      imagenPath: map['imagenPath'] as String?,
     );
   }
 
-  // Copiar con cambios
   ProductoModel copyWith({
-    int? id,
-    int? categoriaId,
+    String? id,
     String? nombre,
+    String? categoriaId,
     List<String>? sabores,
     double? precio,
     int? cantidadPorPaca,
@@ -55,15 +51,12 @@ class ProductoModel {
   }) {
     return ProductoModel(
       id: id ?? this.id,
-      categoriaId: categoriaId ?? this.categoriaId,
       nombre: nombre ?? this.nombre,
+      categoriaId: categoriaId ?? this.categoriaId,
       sabores: sabores ?? this.sabores,
       precio: precio ?? this.precio,
       cantidadPorPaca: cantidadPorPaca ?? this.cantidadPorPaca,
       imagenPath: imagenPath ?? this.imagenPath,
     );
   }
-
-  @override
-  String toString() => 'ProductoModel(id: $id, categoriaId: $categoriaId, nombre: $nombre, sabores: $sabores, precio: $precio, cantidadPorPaca: $cantidadPorPaca, imagenPath: $imagenPath)';
 }

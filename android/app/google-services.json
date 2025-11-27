@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "952927490252",
+    "project_id": "dbbb-42456",
+    "storage_bucket": "dbbb-42456.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:952927490252:android:807e5b2ee9e0659554b269",
+        "android_client_info": {
+          "package_name": "com.bodega.app_bodega"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFmYUYnBkIO4DuYshNhY9Ii4Vesk0tBIQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

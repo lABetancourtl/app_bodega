@@ -20,7 +20,7 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
   List<CategoriaModel> categorias = [];
   List<ProductoModel> productos = [];
   List<ProductoModel> productosFiltrados = [];
-  int? _categoriaSeleccionadaId;
+  String? _categoriaSeleccionadaId;
   int? _productoPresionadoId;
   late Future<void> _delayedAccion;
 
@@ -41,7 +41,7 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
     });
   }
 
-  void _cargarProductos(int categoriaId) async {
+  void _cargarProductos(String categoriaId) async {
     final productosCargados = await _dbHelper.obtenerProductosPorCategoria(categoriaId);
     setState(() {
       productos = productosCargados;
