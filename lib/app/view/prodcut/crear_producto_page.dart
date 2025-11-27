@@ -17,9 +17,7 @@ class CrearProductoPage extends StatefulWidget {
 }
 
 class _CrearProductoPageState extends State<CrearProductoPage> {
-  final StorageHelper _storageHelper = StorageHelper();
   File? _imagenSeleccionada;
-  bool _subiendoImagen = false;
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -145,25 +143,6 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
 
   void _guardarProducto() async {
     if (_formKey.currentState!.validate()) {
-      String? imagenUrl;
-
-      // Si hay imagen seleccionada, subirla primero
-      if (_imagenSeleccionada != null) {
-        setState(() => _subiendoImagen = true);
-
-        try {
-          imagenUrl = await _storageHelper.subirImagenProducto(_imagenSeleccionada!);
-        } catch (e) {
-          setState(() => _subiendoImagen = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al subir imagen: $e')),
-          );
-          return;
-        }
-
-        setState(() => _subiendoImagen = false);
-      }
-
       // Obtener sabores de los controladores
       final sabores = _saborControllers
           .map((controller) => controller.text.trim())
@@ -178,10 +157,12 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
         cantidadPorPaca: _cantidadPacaController.text.isEmpty
             ? null
             : int.parse(_cantidadPacaController.text),
-        imagenPath: imagenUrl,
+        imagenPath: _imagenSeleccionada?.path, // Guardar ruta local directamente
       );
 
-      Navigator.pop(context, nuevoProducto);
+      if (mounted) {
+        Navigator.pop(context, nuevoProducto);
+      }
     }
   }
 
