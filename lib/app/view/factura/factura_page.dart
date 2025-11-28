@@ -29,15 +29,26 @@ class _FacturaPageState extends State<FacturaPage> {
   }
 
   void _cargarFacturas() async {
-    final facturasCargadas = await _dbHelper.obtenerFacturas();
-    setState(() {
-      facturas = facturasCargadas;
-      // Filtrar DESPUÉS de que se carguen las facturas
-      _filtrarPorFecha(fechaSeleccionada!);
-    });
+    try {
+      final facturasCargadas = await _dbHelper.obtenerFacturas();
+      if (mounted) {
+        setState(() {
+          facturas = facturasCargadas;
+          _filtrarPorFecha(fechaSeleccionada!);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar facturas: $e')),
+        );
+      }
+    }
   }
 
   void _filtrarPorFecha(DateTime fecha) {
+    if (!mounted) return;
+
     setState(() {
       fechaSeleccionada = fecha;
       facturasFiltradas = facturas.where((factura) {
@@ -155,7 +166,6 @@ class _FacturaPageState extends State<FacturaPage> {
                   ),
                 ).then((_) {
                   _cargarFacturas();
-                  _filtrarPorFecha(fechaSeleccionada!);
                 });
               },
             ),
@@ -183,32 +193,39 @@ class _FacturaPageState extends State<FacturaPage> {
       ),
     ).then((_) {
       _cargarFacturas();
-      _filtrarPorFecha(fechaSeleccionada!);
     });
   }
 
   void _eliminarFactura(FacturaModel factura) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Eliminar Factura'),
         content: Text('¿Estás seguro de que deseas eliminar la factura de ${factura.nombreCliente}?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () async {
-              await _dbHelper.eliminarFactura(factura.id!);
-              _cargarFacturas();
-              _filtrarPorFecha(fechaSeleccionada!);
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
 
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Factura eliminada')),
-                );
+              try {
+                await _dbHelper.eliminarFactura(factura.id!);
+                _cargarFacturas();
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Factura eliminada')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
               }
             },
             child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
@@ -222,9 +239,11 @@ class _FacturaPageState extends State<FacturaPage> {
     try {
       await PdfService.generarYDescargarPDF(factura);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al descargar: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al descargar: $e')),
+        );
+      }
     }
   }
 

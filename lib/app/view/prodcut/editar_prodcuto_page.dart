@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
+import 'package:app_bodega/app/service/cloudinary_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -22,6 +23,7 @@ class EditarProductoPage extends StatefulWidget {
 class _EditarProductoPageState extends State<EditarProductoPage> {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
+  final CloudinaryHelper _cloudinaryHelper = CloudinaryHelper();
 
   late TextEditingController _nombreController;
   late TextEditingController _precioController;
@@ -30,6 +32,8 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
   late CategoriaModel _categoriaSeleccionada;
   late List<TextEditingController> _saborControllers;
   File? _imagenSeleccionada;
+  bool _subiendoImagen = false;
+  String? _imagenActual;
 
   @override
   void initState() {
@@ -46,13 +50,10 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
         .map((sabor) => TextEditingController(text: sabor))
         .toList();
 
-    // Si la imagen existe y es válida, establecerla
+    // Guardar la URL actual de la imagen (solo si es URL de Cloudinary)
     if (widget.producto.imagenPath != null &&
-          widget.producto.imagenPath!.isNotEmpty) {
-      final file = File(widget.producto.imagenPath!);
-      if (file.existsSync()) {
-        _imagenSeleccionada = file;
-      }
+        widget.producto.imagenPath!.startsWith('http')) {
+      _imagenActual = widget.producto.imagenPath;
     }
   }
 
@@ -123,28 +124,55 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
   }
 
   void _verImagenCompleta() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: const Text('Imagen del Producto'),
-            centerTitle: true,
-          ),
-          body: Center(
-            child: InteractiveViewer(
-              boundaryMargin: const EdgeInsets.all(20),
-              minScale: 0.5,
-              maxScale: 4,
-              child: Image.file(
-                _imagenSeleccionada!,
-                fit: BoxFit.contain,
+    if (_imagenSeleccionada != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            appBar: AppBar(
+              title: const Text('Imagen del Producto'),
+              centerTitle: true,
+            ),
+            body: Center(
+              child: InteractiveViewer(
+                boundaryMargin: const EdgeInsets.all(20),
+                minScale: 0.5,
+                maxScale: 4,
+                child: Image.file(
+                  _imagenSeleccionada!,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    }
+  }
+
+  String _extraerPublicIdCloudinary(String url) {
+    try {
+      print('🔍 Extrayendo public_id de: $url');
+
+      final uri = Uri.parse(url);
+      final path = uri.path;
+
+      final uploadIndex = path.indexOf('/upload/');
+      if (uploadIndex == -1) {
+        print('❌ No se encontró /upload/ en la URL');
+        return '';
+      }
+
+      String afterUpload = path.substring(uploadIndex + 8);
+      afterUpload = afterUpload.replaceAll(RegExp(r'^v\d+/'), '');
+      final publicId = afterUpload.replaceAll(RegExp(r'\.[^.]*$'), '');
+
+      print('✅ Public ID extraído: $publicId');
+      return publicId;
+    } catch (e) {
+      print('❌ Error extrayendo public_id: $e');
+    }
+    return '';
   }
 
   void _mostrarOpcionesImagen() {
@@ -171,8 +199,8 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
             ),
             if (_imagenSeleccionada != null)
               ListTile(
-                leading: const Icon(Icons.visibility,),
-                title: const Text('Ver imagen',),
+                leading: const Icon(Icons.visibility),
+                title: const Text('Ver imagen seleccionada'),
                 onTap: () {
                   Navigator.pop(context);
                   _verImagenCompleta();
@@ -181,7 +209,7 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
             if (_imagenSeleccionada != null)
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Eliminar imagen',
+                title: const Text('Eliminar imagen seleccionada',
                     style: TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.pop(context);
@@ -190,17 +218,153 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
                   });
                 },
               ),
+            if (_imagenActual != null && _imagenActual!.startsWith('http') && _imagenSeleccionada == null)
+              ListTile(
+                leading: const Icon(Icons.visibility),
+                title: const Text('Ver imagen actual'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _verImagenActual();
+                },
+              ),
+            if (_imagenActual != null && _imagenActual!.startsWith('http') && _imagenSeleccionada == null)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Eliminar imagen actual',
+                    style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _eliminarImagenActual();
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  void _guardarProducto() {
+  void _verImagenActual() {
+    if (_imagenActual != null && _imagenActual!.startsWith('http')) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            appBar: AppBar(
+              title: const Text('Imagen del Producto'),
+              centerTitle: true,
+            ),
+            body: Center(
+              child: InteractiveViewer(
+                boundaryMargin: const EdgeInsets.all(20),
+                minScale: 0.5,
+                maxScale: 4,
+                child: Image.network(
+                  _imagenActual!,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  void _eliminarImagenActual() async {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar Imagen'),
+        content: const Text('¿Estás seguro de que deseas eliminar la imagen actual?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+
+              // Extraer public_id y eliminar de Cloudinary
+              final publicId = _extraerPublicIdCloudinary(_imagenActual!);
+              if (publicId.isNotEmpty) {
+                print('🗑️ Eliminando imagen actual de Cloudinary: $publicId');
+                await _cloudinaryHelper.eliminarImagen(publicId);
+              }
+
+              // Limpiar la imagen actual
+              if (mounted) {
+                setState(() {
+                  _imagenActual = null;
+                  _imagenSeleccionada = null;
+                });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Imagen eliminada')),
+                );
+              }
+            },
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _guardarProducto() async {
     if (_formKey.currentState!.validate()) {
+      String? imagenUrl = _imagenActual;
+
+      if (_imagenSeleccionada != null) {
+        setState(() => _subiendoImagen = true);
+
+        try {
+          final nuevaUrl = await _cloudinaryHelper.subirImagenProducto(_imagenSeleccionada!);
+
+          if (nuevaUrl == null) {
+            if (mounted) {
+              setState(() => _subiendoImagen = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No se pudo subir la imagen')),
+              );
+            }
+            return;
+          }
+
+          imagenUrl = nuevaUrl;
+
+          if (_imagenActual != null && _imagenActual!.contains('cloudinary')) {
+            try {
+              final publicId = _extraerPublicIdCloudinary(_imagenActual!);
+              if (publicId.isNotEmpty) {
+                print('🗑️ Eliminando imagen anterior: $publicId');
+                await _cloudinaryHelper.eliminarImagen(publicId);
+                print('✅ Imagen anterior eliminada');
+              } else {
+                print('⚠️ No se pudo extraer public_id');
+              }
+            } catch (e) {
+              print('⚠️ Error al eliminar: $e');
+            }
+          }
+
+          if (mounted) {
+            setState(() => _subiendoImagen = false);
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() => _subiendoImagen = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: $e')),
+            );
+          }
+          return;
+        }
+      }
+
       final sabores = _saborControllers
           .where((controller) => controller.text.isNotEmpty)
-          .map((controller) => controller.text)
+          .map((controller) => controller.text.trim())
           .toList();
 
       if (sabores.isEmpty) {
@@ -219,10 +383,12 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
         cantidadPorPaca: _cantidadPacaController.text.isEmpty
             ? null
             : int.parse(_cantidadPacaController.text),
-        imagenPath: _imagenSeleccionada?.path,
+        imagenPath: imagenUrl,
       );
 
-      Navigator.pop(context, productoActualizado);
+      if (mounted) {
+        Navigator.pop(context, productoActualizado);
+      }
     }
   }
 
@@ -239,9 +405,8 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Sección de imagen
               GestureDetector(
-                onTap: _mostrarOpcionesImagen,
+                onTap: _subiendoImagen ? null : _mostrarOpcionesImagen,
                 child: Container(
                   width: double.infinity,
                   height: 200,
@@ -250,12 +415,59 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
                     borderRadius: BorderRadius.circular(12),
                     color: Colors.grey[100],
                   ),
-                  child: _imagenSeleccionada != null
+                  child: _subiendoImagen
+                      ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Subiendo imagen...'),
+                      ],
+                    ),
+                  )
+                      : _imagenSeleccionada != null
                       ? ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: Image.file(
                       _imagenSeleccionada!,
                       fit: BoxFit.cover,
+                    ),
+                  )
+                      : _imagenActual != null && _imagenActual!.startsWith('http')
+                      ? ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
+                      _imagenActual!,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_a_photo,
+                              size: 48,
+                              color: Colors.blue[300],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Toca para cambiar imagen',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   )
                       : Column(
@@ -268,7 +480,7 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Toca para cambiar imagen',
+                        'Toca para agregar imagen',
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                     ],
@@ -277,7 +489,6 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
               ),
               const SizedBox(height: 24),
 
-              // Categoría
               DropdownButtonFormField<CategoriaModel>(
                 value: _categoriaSeleccionada,
                 decoration: InputDecoration(
@@ -301,7 +512,6 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
               ),
               const SizedBox(height: 16),
 
-              // Nombre del Producto
               TextFormField(
                 controller: _nombreController,
                 decoration: InputDecoration(
@@ -321,7 +531,6 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
               ),
               const SizedBox(height: 16),
 
-              // Precio
               TextFormField(
                 controller: _precioController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -345,7 +554,6 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
               ),
               const SizedBox(height: 16),
 
-              // Cantidad por Paca
               TextFormField(
                 controller: _cantidadPacaController,
                 keyboardType: TextInputType.number,
@@ -368,7 +576,6 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
               ),
               const SizedBox(height: 24),
 
-              // Sabores
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -376,7 +583,7 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
                     'Sabores',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  if (_saborControllers.length < 5)
+                  if (_saborControllers.length < 10)
                     IconButton(
                       icon: const Icon(Icons.add_circle, color: Colors.blue),
                       onPressed: _agregarSabor,
@@ -421,18 +628,17 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
               ),
               const SizedBox(height: 32),
 
-              // Botón Guardar
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _guardarProducto,
+                  onPressed: _subiendoImagen ? null : _guardarProducto,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: Colors.blue,
                   ),
-                  child: const Text(
-                    'Guardar Cambios',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  child: Text(
+                    _subiendoImagen ? 'Guardando...' : 'Guardar Cambios',
+                    style: const TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
               ),

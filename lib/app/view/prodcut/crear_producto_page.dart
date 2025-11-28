@@ -5,7 +5,7 @@ import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../service/storage_helper.dart';
+import '../../service/cloudinary_helper.dart';
 
 class CrearProductoPage extends StatefulWidget {
   final List<CategoriaModel> categorias;
@@ -17,7 +17,9 @@ class CrearProductoPage extends StatefulWidget {
 }
 
 class _CrearProductoPageState extends State<CrearProductoPage> {
+  final CloudinaryHelper _cloudinaryHelper = CloudinaryHelper();
   File? _imagenSeleccionada;
+  bool _subiendoImagen = false;
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -143,6 +145,39 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
 
   void _guardarProducto() async {
     if (_formKey.currentState!.validate()) {
+      String? imagenUrl;
+
+      // Si hay imagen seleccionada, subirla a Cloudinary
+      if (_imagenSeleccionada != null) {
+        setState(() => _subiendoImagen = true);
+
+        try {
+          imagenUrl = await _cloudinaryHelper.subirImagenProducto(_imagenSeleccionada!);
+        } catch (e) {
+          if (mounted) {
+            setState(() => _subiendoImagen = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error al subir imagen: $e')),
+            );
+          }
+          return;
+        }
+
+        if (imagenUrl == null) {
+          if (mounted) {
+            setState(() => _subiendoImagen = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No se pudo obtener URL de la imagen')),
+            );
+          }
+          return;
+        }
+
+        if (mounted) {
+          setState(() => _subiendoImagen = false);
+        }
+      }
+
       // Obtener sabores de los controladores
       final sabores = _saborControllers
           .map((controller) => controller.text.trim())
@@ -157,7 +192,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
         cantidadPorPaca: _cantidadPacaController.text.isEmpty
             ? null
             : int.parse(_cantidadPacaController.text),
-        imagenPath: _imagenSeleccionada?.path, // Guardar ruta local directamente
+        imagenPath: imagenUrl,
       );
 
       if (mounted) {
@@ -365,14 +400,14 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _guardarProducto,
+                  onPressed: _subiendoImagen ? null : _guardarProducto,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: Colors.blue,
                   ),
-                  child: const Text(
-                    'Guardar Producto',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  child: Text(
+                    _subiendoImagen ? 'Subiendo imagen...' : 'Guardar Producto',
+                    style: const TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
               ),

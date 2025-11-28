@@ -32,40 +32,62 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
 
   void _cargarCategorias() async {
     final categoriasCargadas = await _dbHelper.obtenerCategorias();
-    setState(() {
-      categorias = categoriasCargadas;
-      if (categorias.isNotEmpty) {
-        _categoriaSeleccionadaId = categorias[0].id;
-        _cargarProductos(categorias[0].id!);
-      }
-    });
+    if (mounted) {
+      setState(() {
+        categorias = categoriasCargadas;
+        if (categorias.isNotEmpty) {
+          _categoriaSeleccionadaId = categorias[0].id;
+          _cargarProductos(categorias[0].id!);
+        }
+      });
+    }
   }
 
   void _cargarProductos(String categoriaId) async {
     final productosCargados = await _dbHelper.obtenerProductosPorCategoria(categoriaId);
-    setState(() {
-      productos = productosCargados;
-      productosFiltrados = productosCargados;
-    });
+    if (mounted) {
+      setState(() {
+        productos = productosCargados;
+        productosFiltrados = productosCargados;
+      });
+    }
   }
 
   Widget _construirImagenProducto(String? imagenPath) {
-    if (imagenPath != null && imagenPath.isNotEmpty) {
-      final file = File(imagenPath);
-      if (file.existsSync()) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: 60,
-            height: 60,
-          ),
-        );
-      }
+    if (imagenPath != null && imagenPath.isNotEmpty && imagenPath.startsWith('http')) {
+      // Solo mostrar imágenes de Cloudinary
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          imagenPath,
+          fit: BoxFit.cover,
+          width: 60,
+          height: 60,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              width: 60,
+              height: 60,
+              alignment: Alignment.center,
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return _imagenPorDefecto();
+          },
+        ),
+      );
     }
 
-    // Imagen por defecto si no existe
+    return _imagenPorDefecto();
+  }
+
+  Widget _imagenPorDefecto() {
     return Container(
       width: 60,
       height: 60,
@@ -83,8 +105,8 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
 
   void _verImagenProducto(ProductoModel producto) {
     if (producto.imagenPath != null && producto.imagenPath!.isNotEmpty) {
-      final file = File(producto.imagenPath!);
-      if (file.existsSync()) {
+      // Si es URL de Cloudinary
+      if (producto.imagenPath!.startsWith('http')) {
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -98,8 +120,8 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
                   boundaryMargin: const EdgeInsets.all(20),
                   minScale: 0.5,
                   maxScale: 4,
-                  child: Image.file(
-                    file,
+                  child: Image.network(
+                    producto.imagenPath!,
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -108,6 +130,34 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
           ),
         );
         return;
+      } else {
+        // Es ruta local
+        final file = File(producto.imagenPath!);
+        if (file.existsSync()) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Scaffold(
+                appBar: AppBar(
+                  title: const Text('Imagen del Producto'),
+                  centerTitle: true,
+                ),
+                body: Center(
+                  child: InteractiveViewer(
+                    boundaryMargin: const EdgeInsets.all(20),
+                    minScale: 0.5,
+                    maxScale: 4,
+                    child: Image.file(
+                      file,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          return;
+        }
       }
     }
     ScaffoldMessenger.of(context).showSnackBar(

@@ -76,23 +76,34 @@ class _ProductosPageState extends State<ProductosPage> {
   }
 
   Widget _construirImagenProducto(String? imagenPath) {
-    if (imagenPath != null && imagenPath.isNotEmpty) {
-      final file = File(imagenPath);
-
-      if (file.existsSync()) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: 60,
-            height: 60,
-            errorBuilder: (context, error, stackTrace) {
-              return _imagenPorDefecto();
-            },
-          ),
-        );
-      }
+    if (imagenPath != null && imagenPath.isNotEmpty && imagenPath.startsWith('http')) {
+      // Solo mostrar imágenes de Cloudinary
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          imagenPath,
+          fit: BoxFit.cover,
+          width: 60,
+          height: 60,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              width: 60,
+              height: 60,
+              alignment: Alignment.center,
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return _imagenPorDefecto();
+          },
+        ),
+      );
     }
 
     return _imagenPorDefecto();
@@ -442,12 +453,19 @@ class _ProductosPageState extends State<ProductosPage> {
                         ),
                         Text(
                           'Precio: \$${_formatearPrecio(producto.precio)}',
-                          style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         if (producto.cantidadPorPaca != null)
                           Text(
                             'Cantidad por paca: ${producto.cantidadPorPaca}',
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
                           ),
                       ],
                     ),
@@ -470,7 +488,8 @@ class _ProductosPageState extends State<ProductosPage> {
                                 Navigator.pop(context);
                                 _eliminarProducto(producto);
                               },
-                              child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+                              child: const Text('Eliminar',
+                                  style: TextStyle(color: Colors.red)),
                             ),
                             TextButton(
                               onPressed: () => Navigator.pop(context),
