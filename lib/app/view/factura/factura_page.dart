@@ -1,77 +1,65 @@
 import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
+import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/service/pdf_service.dart';
 import 'package:app_bodega/app/view/factura/crear_factura_page.dart';
 import 'package:app_bodega/app/view/factura/editar_factura_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-class FacturaPage extends StatefulWidget {
-  const FacturaPage({super.key});
+// ============= STATE NOTIFIER PARA FECHA =============
+class FechaState {
+  final DateTime fechaSeleccionada;
 
-  @override
-  State<FacturaPage> createState() => _FacturaPageState();
+  FechaState({required this.fechaSeleccionada});
+
+  FechaState copyWith({DateTime? fechaSeleccionada}) {
+    return FechaState(
+      fechaSeleccionada: fechaSeleccionada ?? this.fechaSeleccionada,
+    );
+  }
 }
 
-class _FacturaPageState extends State<FacturaPage> {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-  List<FacturaModel> facturas = [];
-  List<FacturaModel> facturasFiltradas = [];
-  DateTime? fechaSeleccionada;
+class FechaNotifier extends StateNotifier<FechaState> {
+  FechaNotifier() : super(FechaState(fechaSeleccionada: DateTime.now()));
 
-  @override
-  void initState() {
-    super.initState();
-    fechaSeleccionada = DateTime.now();
-    _cargarFacturas();
+  void setFecha(DateTime fecha) {
+    state = state.copyWith(fechaSeleccionada: fecha);
   }
+}
 
-  void _cargarFacturas() async {
-    try {
-      final facturasCargadas = await _dbHelper.obtenerFacturas();
-      if (mounted) {
-        setState(() {
-          facturas = facturasCargadas;
-          _filtrarPorFecha(fechaSeleccionada!);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar facturas: $e')),
-        );
-      }
-    }
-  }
+final fechaProvider = StateNotifierProvider<FechaNotifier, FechaState>((ref) {
+  return FechaNotifier();
+});
 
-  void _filtrarPorFecha(DateTime fecha) {
-    if (!mounted) return;
+// ============= PROVIDERS =============
+final facturasProvider = FutureProvider<List<FacturaModel>>((ref) async {
+  final dbHelper = DatabaseHelper();
+  return await dbHelper.obtenerFacturas();
+});
 
-    setState(() {
-      fechaSeleccionada = fecha;
-      facturasFiltradas = facturas.where((factura) {
-        return factura.fecha.year == fecha.year &&
-            factura.fecha.month == fecha.month &&
-            factura.fecha.day == fecha.day;
-      }).toList();
-    });
-  }
+final facturasFiltradasProvider = Provider<List<FacturaModel>>((ref) {
+  final facturasAsync = ref.watch(facturasProvider);
+  final fechaState = ref.watch(fechaProvider);
 
-  void _seleccionarFecha() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: fechaSeleccionada ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      locale: const Locale('es', 'ES'),
-    );
+  return facturasAsync.whenData((facturas) {
+    final fecha = fechaState.fechaSeleccionada;
+    return facturas.where((factura) {
+      return factura.fecha.year == fecha.year &&
+          factura.fecha.month == fecha.month &&
+          factura.fecha.day == fecha.day;
+    }).toList();
+  }).maybeWhen(
+    data: (data) => data,
+    orElse: () => [],
+  );
+});
 
-    if (picked != null) {
-      _filtrarPorFecha(picked);
-    }
-  }
+// ============= PÁGINA =============
+class FacturaPage extends ConsumerWidget {
+  const FacturaPage({super.key});
 
   String _formatearFecha(DateTime fecha) {
     return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
@@ -85,42 +73,24 @@ class _FacturaPageState extends State<FacturaPage> {
     );
   }
 
-  String _generarMensajeFactura(FacturaModel factura) {
-    final total = factura.items.fold(0.0, (sum, item) => sum + item.subtotal);
-    final fecha = '${factura.fecha.day}/${factura.fecha.month}/${factura.fecha.year}';
+  void _seleccionarFecha(BuildContext context, WidgetRef ref) async {
+    final fechaState = ref.read(fechaProvider);
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: fechaState.fechaSeleccionada,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('es', 'ES'),
+    );
 
-    String mensaje = '*Factura de Bodega*\n\n';
-    mensaje += '👤 *Cliente:* ${factura.nombreCliente}\n';
-    if (factura.direccionCliente != null) {
-      mensaje += '📍 *Dirección:* ${factura.direccionCliente}\n';
+    if (picked != null) {
+      ref.read(fechaProvider.notifier).setFecha(picked);
     }
-    if (factura.negocioCliente != null) {
-      mensaje += '🏪 *Negocio:* ${factura.negocioCliente}\n';
-    }
-    mensaje += '📅 *Fecha:* $fecha\n\n';
-
-    mensaje += '*Productos:*\n';
-    for (var item in factura.items) {
-      mensaje += '• ${item.nombreProducto}\n';
-      mensaje += '  Cantidad: ${item.cantidadTotal}\n';
-      mensaje += '  Precio unitario: \$${_formatearPrecio(item.precioUnitario)}\n';
-      mensaje += '  Subtotal: \$${_formatearPrecio(item.subtotal)}\n\n';
-    }
-
-    mensaje += '━━━━━━━━━━━━━━━━\n';
-    mensaje += '*💰 TOTAL: \$${_formatearPrecio(total)}*\n';
-
-    if (factura.observacionesCliente != null &&
-        factura.observacionesCliente!.isNotEmpty) {
-      mensaje += '\n📝 *Notas:* ${factura.observacionesCliente}\n';
-    }
-
-    return mensaje;
   }
 
-  Future<void> _enviarPorWhatsApp(FacturaModel factura) async {
+  Future<void> _enviarPorWhatsApp(BuildContext context, FacturaModel factura) async {
     try {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Generando PDF y abriendo WhatsApp...'),
@@ -138,7 +108,7 @@ class _FacturaPageState extends State<FacturaPage> {
         subject: 'Factura #${factura.id}',
       );
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al preparar PDF: $e')),
         );
@@ -146,7 +116,69 @@ class _FacturaPageState extends State<FacturaPage> {
     }
   }
 
-  void _mostrarMenuFlotante() {
+  void _editarFactura(BuildContext context, WidgetRef ref, FacturaModel factura) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditarFacturaPage(factura: factura),
+      ),
+    );
+    ref.invalidate(facturasProvider);
+  }
+
+  void _eliminarFactura(BuildContext context, WidgetRef ref, FacturaModel factura) {
+    final dbHelper = DatabaseHelper();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar Factura'),
+        content: Text('¿Estás seguro de que deseas eliminar la factura de ${factura.nombreCliente}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+
+              try {
+                await dbHelper.eliminarFactura(factura.id!);
+                ref.invalidate(facturasProvider);
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Factura eliminada')),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _descargarFactura(BuildContext context, FacturaModel factura) async {
+    try {
+      await PdfService.generarYDescargarPDF(factura);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al descargar: $e')),
+        );
+      }
+    }
+  }
+
+  void _mostrarMenuFlotante(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -157,16 +189,15 @@ class _FacturaPageState extends State<FacturaPage> {
             ListTile(
               leading: const Icon(Icons.shopping_cart),
               title: const Text('Factura a Clientes'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                Navigator.push(
+                await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const CrearFacturaPage(),
                   ),
-                ).then((_) {
-                  _cargarFacturas();
-                });
+                );
+                ref.invalidate(facturasProvider);
               },
             ),
             ListTile(
@@ -185,77 +216,28 @@ class _FacturaPageState extends State<FacturaPage> {
     );
   }
 
-  void _editarFactura(FacturaModel factura) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditarFacturaPage(factura: factura),
-      ),
-    ).then((_) {
-      _cargarFacturas();
-    });
-  }
-
-  void _eliminarFactura(FacturaModel factura) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Eliminar Factura'),
-        content: Text('¿Estás seguro de que deseas eliminar la factura de ${factura.nombreCliente}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-
-              try {
-                await _dbHelper.eliminarFactura(factura.id!);
-                _cargarFacturas();
-
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Factura eliminada')),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _descargarFactura(FacturaModel factura) async {
-    try {
-      await PdfService.generarYDescargarPDF(factura);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al descargar: $e')),
-        );
-      }
-    }
-  }
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final facturasAsync = ref.watch(facturasProvider);
+    final facturasFiltradas = ref.watch(facturasFiltradasProvider);
+    final fechaState = ref.watch(fechaProvider);
+
     final totalDia = facturasFiltradas.fold(0.0, (sum, factura) {
       return sum + factura.items.fold(0.0, (itemSum, item) => itemSum + item.subtotal);
     });
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Facturas'),
+        title: const Text(
+          'Facturas',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        elevation: 1,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.blue[800],
       ),
       body: Column(
         children: [
@@ -285,7 +267,7 @@ class _FacturaPageState extends State<FacturaPage> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              _formatearFecha(fechaSeleccionada ?? DateTime.now()),
+                              _formatearFecha(fechaState.fechaSeleccionada),
                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                             const Icon(Icons.calendar_today, color: Colors.blue),
@@ -295,7 +277,7 @@ class _FacturaPageState extends State<FacturaPage> {
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton.icon(
-                      onPressed: _seleccionarFecha,
+                      onPressed: () => _seleccionarFecha(context, ref),
                       icon: const Icon(Icons.date_range),
                       label: const Text('Cambiar'),
                       style: ElevatedButton.styleFrom(
@@ -339,109 +321,134 @@ class _FacturaPageState extends State<FacturaPage> {
 
           // ==================== LISTA DE FACTURAS ====================
           Expanded(
-            child: facturasFiltradas.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.receipt,
-                    size: 64,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No hay facturas para esta fecha',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
+            child: facturasAsync.when(
+              loading: () => const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Cargando facturas...'),
+                  ],
+                ),
               ),
-            )
-                : ListView.builder(
-              padding: const EdgeInsets.all(8),
-              itemCount: facturasFiltradas.length,
-              itemBuilder: (context, index) {
-                final factura = facturasFiltradas[index];
-                final total = factura.items.fold(0.0, (sum, item) => sum + item.subtotal);
+              error: (err, stack) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text('Error: $err'),
+                  ],
+                ),
+              ),
+              data: (facturas) {
+                if (facturasFiltradas.isEmpty) {
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.receipt,
+                        size: 80,
+                        color: Colors.grey[300],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No hay facturas para esta fecha',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  );
+                }
 
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  child: ListTile(
-                    leading: const Icon(Icons.receipt, color: Colors.blue),
-                    title: Text(
-                      factura.nombreCliente,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hora: ${factura.fecha.hour.toString().padLeft(2, '0')}:${factura.fecha.minute.toString().padLeft(2, '0')}',
-                          style: const TextStyle(fontSize: 12),
+                return ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: facturasFiltradas.length,
+                  itemBuilder: (context, index) {
+                    final factura = facturasFiltradas[index];
+                    final total = factura.items.fold(0.0, (sum, item) => sum + item.subtotal);
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      child: ListTile(
+                        leading: const Icon(Icons.receipt, color: Colors.blue),
+                        title: Text(
+                          factura.nombreCliente,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        Text(
-                          'Productos: ${factura.items.length}',
-                          style: const TextStyle(fontSize: 12),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Hora: ${factura.fecha.hour.toString().padLeft(2, '0')}:${factura.fecha.minute.toString().padLeft(2, '0')}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              'Productos: ${factura.items.length}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              'Total: \$${_formatearPrecio(total)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          'Total: \$${_formatearPrecio(total)}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.more_vert),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text(factura.nombreCliente),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      _editarFactura(context, ref, factura);
+                                    },
+                                    child: const Text('Editar'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      _enviarPorWhatsApp(context, factura);
+                                    },
+                                    child: const Text('Enviar por WhatsApp'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      _descargarFactura(context, factura);
+                                    },
+                                    child: const Text('Descargar PDF'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      _eliminarFactura(context, ref, factura);
+                                    },
+                                    child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
-                      ],
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.more_vert),
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text(factura.nombreCliente),
-                            actions: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _editarFactura(factura);
-                                },
-                                child: const Text('Editar'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _enviarPorWhatsApp(factura);
-                                },
-                                child: const Text('Enviar por WhatsApp'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _descargarFactura(factura);
-                                },
-                                child: const Text('Descargar PDF'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _eliminarFactura(factura);
-                                },
-                                child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Cancelar'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -449,7 +456,7 @@ class _FacturaPageState extends State<FacturaPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _mostrarMenuFlotante,
+        onPressed: () => _mostrarMenuFlotante(context, ref),
         child: const Icon(Icons.add),
       ),
     );

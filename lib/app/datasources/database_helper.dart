@@ -29,7 +29,7 @@ class DatabaseHelper {
       final docRef = await _firestore
           .collection(clientesCol)
           .add(cliente.toMap());
-      return docRef.id;  // ✅ Retornar String directamente
+      return docRef.id;
     } catch (e) {
       throw Exception('Error al insertar cliente: $e');
     }
@@ -43,7 +43,7 @@ class DatabaseHelper {
           .get();
 
       return snapshot.docs.map((doc) {
-        return ClienteModel.fromMap(doc.data(), doc.id);  // ✅ Pasar doc.id
+        return ClienteModel.fromMap(doc.data(), doc.id);
       }).toList();
     } catch (e) {
       throw Exception('Error al obtener clientes: $e');
@@ -169,7 +169,7 @@ class DatabaseHelper {
       final docRef = await _firestore
           .collection(productosCol)
           .add(producto.toMap());
-      return docRef.id; // ✅ Retornar String directamente
+      return docRef.id;
     } catch (e) {
       throw Exception('Error al insertar producto: $e');
     }
@@ -183,7 +183,7 @@ class DatabaseHelper {
           .get();
 
       return snapshot.docs.map((doc) {
-        return ProductoModel.fromMap(doc.data(), doc.id); // ✅ Pasar doc.id
+        return ProductoModel.fromMap(doc.data(), doc.id);
       }).toList();
     } catch (e) {
       throw Exception('Error al obtener productos: $e');
@@ -211,7 +211,7 @@ class DatabaseHelper {
     try {
       final doc = await _firestore
           .collection(productosCol)
-          .doc(id) // ✅ Usar .doc(id) directamente
+          .doc(id)
           .get();
 
       if (doc.exists) {
@@ -231,7 +231,7 @@ class DatabaseHelper {
 
       await _firestore
           .collection(productosCol)
-          .doc(producto.id) // ✅ Usar el ID directamente
+          .doc(producto.id)
           .update(producto.toMap());
     } catch (e) {
       throw Exception('Error al actualizar producto: $e');
@@ -242,7 +242,7 @@ class DatabaseHelper {
     try {
       await _firestore
           .collection(productosCol)
-          .doc(id) // ✅ Usar el ID directamente
+          .doc(id)
           .delete();
     } catch (e) {
       throw Exception('Error al eliminar producto: $e');
@@ -263,48 +263,42 @@ class DatabaseHelper {
         'fecha': factura.fecha.toIso8601String(),
         'estado': factura.estado,
         'total': factura.total,
+        'items': factura.items.map((item) => item.toMap()).toList(), // Store items as array
       };
 
       final docRef = await _firestore
           .collection(facturasCol)
           .add(facturaData);
 
-      // Insertar items
-      for (var item in factura.items) {
-        await _firestore
-            .collection(facturasCol)
-            .doc(docRef.id)
-            .collection(itemFacturasCol)
-            .add(item.toMap());
-      }
-
-      return docRef.id; // ✅ Retornar String directamente
+      return docRef.id;
     } catch (e) {
       throw Exception('Error al insertar factura: $e');
     }
   }
 
-  Future<List<FacturaModel>> obtenerFacturas() async {
+  Future<List<FacturaModel>> obtenerFacturas({
+    int limit = 20,
+    DocumentSnapshot? lastDocument,
+  }) async {
     try {
-      final snapshot = await _firestore
+      Query query = _firestore
           .collection(facturasCol)
           .orderBy('fecha', descending: true)
-          .get();
+          .limit(limit);
+
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+
+      final snapshot = await query.get();
 
       List<FacturaModel> facturas = [];
 
       for (var doc in snapshot.docs) {
-        final data = doc.data();
+        final data = doc.data() as Map<String, dynamic>;
 
-        // Obtener items de la subcolección
-        final itemsSnapshot = await _firestore
-            .collection(facturasCol)
-            .doc(doc.id)
-            .collection(itemFacturasCol)
-            .get();
-
-        final items = itemsSnapshot.docs
-            .map((itemDoc) => ItemFacturaModel.fromMap(itemDoc.data()))
+        final items = (data['items'] as List<dynamic>? ?? [])
+            .map((item) => ItemFacturaModel.fromMap(item as Map<String, dynamic>))
             .toList();
 
         facturas.add(FacturaModel.fromMap(data, doc.id, items));
@@ -320,20 +314,14 @@ class DatabaseHelper {
     try {
       final doc = await _firestore
           .collection(facturasCol)
-          .doc(id) // ✅ Usar .doc(id) directamente
+          .doc(id)
           .get();
 
       if (doc.exists) {
         final data = doc.data()!;
 
-        final itemsSnapshot = await _firestore
-            .collection(facturasCol)
-            .doc(doc.id)
-            .collection(itemFacturasCol)
-            .get();
-
-        final items = itemsSnapshot.docs
-            .map((itemDoc) => ItemFacturaModel.fromMap(itemDoc.data()))
+        final items = (data['items'] as List<dynamic>? ?? [])
+            .map((item) => ItemFacturaModel.fromMap(item as Map<String, dynamic>))
             .toList();
 
         return FacturaModel.fromMap(data, doc.id, items);
@@ -364,18 +352,8 @@ class DatabaseHelper {
         'fecha': factura.fecha.toIso8601String(),
         'estado': factura.estado,
         'total': factura.total,
+        'items': factura.items.map((item) => item.toMap()).toList(),
       });
-
-      // Eliminar items anteriores
-      final itemsSnapshot = await docRef.collection(itemFacturasCol).get();
-      for (var itemDoc in itemsSnapshot.docs) {
-        await itemDoc.reference.delete();
-      }
-
-      // Insertar nuevos items
-      for (var item in factura.items) {
-        await docRef.collection(itemFacturasCol).add(item.toMap());
-      }
     } catch (e) {
       throw Exception('Error al actualizar factura: $e');
     }
@@ -383,18 +361,10 @@ class DatabaseHelper {
 
   Future<void> eliminarFactura(String id) async {
     try {
-      final docRef = _firestore
+      await _firestore
           .collection(facturasCol)
-          .doc(id);
-
-      // Eliminar items primero
-      final itemsSnapshot = await docRef.collection(itemFacturasCol).get();
-      for (var itemDoc in itemsSnapshot.docs) {
-        await itemDoc.reference.delete();
-      }
-
-      // Eliminar factura
-      await docRef.delete();
+          .doc(id)
+          .delete();
     } catch (e) {
       throw Exception('Error al eliminar factura: $e');
     }

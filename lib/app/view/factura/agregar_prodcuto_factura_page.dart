@@ -4,58 +4,137 @@ import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
+import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class AgregarProductoFacturaPage extends StatefulWidget {
+final categoriasProvider = FutureProvider<List<CategoriaModel>>((ref) async {
+  final dbHelper = DatabaseHelper();
+  return await dbHelper.obtenerCategorias();
+});
+
+final categoriaSeleccionadaProvider = StateProvider<String?>((ref) {
+  final categoriasAsync = ref.watch(categoriasProvider);
+  return categoriasAsync.whenData((categorias) {
+    return categorias.isNotEmpty ? categorias[0].id : null;
+  }).value;
+});
+
+final productosProvider = FutureProvider<List<ProductoModel>>((ref) async {
+  final categoriaId = ref.watch(categoriaSeleccionadaProvider);
+  if (categoriaId == null) return [];
+
+  final dbHelper = DatabaseHelper();
+  return await dbHelper.obtenerProductosPorCategoria(categoriaId);
+});
+
+class AgregarProductoFacturaPage extends ConsumerWidget {
   const AgregarProductoFacturaPage({super.key});
 
   @override
-  State<AgregarProductoFacturaPage> createState() =>
-      _AgregarProductoFacturaPageState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categoriasAsync = ref.watch(categoriasProvider);
+    final productosAsync = ref.watch(productosProvider);
+    final categoriaSeleccionada = ref.watch(categoriaSeleccionadaProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Agregar Producto'),
+      ),
+      body: Column(
+        children: [
+          categoriasAsync.when(
+            data: (categorias) {
+              if (categorias.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return SizedBox(
+                height: 50,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  itemCount: categorias.length,
+                  itemBuilder: (context, index) {
+                    final categoria = categorias[index];
+                    final isSelected = categoriaSeleccionada == categoria.id;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: FilterChip(
+                        label: Text(categoria.nombre),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          ref.read(categoriaSeleccionadaProvider.notifier).state = categoria.id;
+                        },
+                        backgroundColor: Colors.grey[200],
+                        selectedColor: Colors.blue,
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : Colors.black,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stackTrace) => Center(child: Text('Error: $error')),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Selecciona un producto',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: productosAsync.when(
+              data: (productos) {
+                if (productos.isEmpty) {
+                  return const Center(
+                    child: Text('No hay productos en esta categoría'),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: productos.length,
+                  itemBuilder: (context, index) {
+                    final producto = productos[index];
+                    return _ProductoCard(
+                      producto: producto,
+                      onSelected: (item) {
+                        Navigator.pop(context, item);
+                      },
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) => Center(child: Text('Error: $error')),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage> {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+class _ProductoCard extends StatelessWidget {
+  final ProductoModel producto;
+  final Function(ItemFacturaModel) onSelected;
 
-  List<CategoriaModel> categorias = [];
-  List<ProductoModel> productos = [];
-  List<ProductoModel> productosFiltrados = [];
-  String? _categoriaSeleccionadaId;
-  int? _productoPresionadoId;
-  late Future<void> _delayedAccion;
-
-  @override
-  void initState() {
-    super.initState();
-    _cargarCategorias();
-  }
-
-  void _cargarCategorias() async {
-    final categoriasCargadas = await _dbHelper.obtenerCategorias();
-    if (mounted) {
-      setState(() {
-        categorias = categoriasCargadas;
-        if (categorias.isNotEmpty) {
-          _categoriaSeleccionadaId = categorias[0].id;
-          _cargarProductos(categorias[0].id!);
-        }
-      });
-    }
-  }
-
-  void _cargarProductos(String categoriaId) async {
-    final productosCargados = await _dbHelper.obtenerProductosPorCategoria(categoriaId);
-    if (mounted) {
-      setState(() {
-        productos = productosCargados;
-        productosFiltrados = productosCargados;
-      });
-    }
-  }
+  const _ProductoCard({
+    required this.producto,
+    required this.onSelected,
+  });
 
   Widget _construirImagenProducto(String? imagenPath) {
     if (imagenPath != null && imagenPath.isNotEmpty && imagenPath.startsWith('http')) {
-      // Solo mostrar imágenes de Cloudinary
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.network(
@@ -103,9 +182,8 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
     );
   }
 
-  void _verImagenProducto(ProductoModel producto) {
+  void _verImagenProducto(BuildContext context, ProductoModel producto) {
     if (producto.imagenPath != null && producto.imagenPath!.isNotEmpty) {
-      // Si es URL de Cloudinary
       if (producto.imagenPath!.startsWith('http')) {
         Navigator.push(
           context,
@@ -131,7 +209,6 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
         );
         return;
       } else {
-        // Es ruta local
         final file = File(producto.imagenPath!);
         if (file.existsSync()) {
           Navigator.push(
@@ -165,12 +242,11 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
     );
   }
 
-  void _mostrarDialogoCantidad(ProductoModel producto) {
+  void _mostrarDialogoCantidad(BuildContext context, ProductoModel producto) {
     final TextEditingController cantidadTotalController = TextEditingController();
     final Map<String, TextEditingController> controllersPorSabor = {};
     final Map<String, int> cantidadPorSabor = {};
 
-    // Inicializar controladores
     for (var sabor in producto.sabores) {
       cantidadPorSabor[sabor] = 0;
       controllersPorSabor[sabor] = TextEditingController(text: '0');
@@ -187,7 +263,6 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Cantidad Total
                   TextField(
                     controller: cantidadTotalController,
                     keyboardType: TextInputType.number,
@@ -203,7 +278,6 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
                   ),
                   const SizedBox(height: 16),
 
-                  // Distribución por sabores (si tiene múltiples sabores)
                   if (producto.sabores.length > 1) ...[
                     const Text(
                       'Distribuir por sabor:',
@@ -308,7 +382,7 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
                   );
 
                   Navigator.pop(context);
-                  Navigator.pop(context, itemFactura);
+                  onSelected(itemFactura);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
@@ -327,89 +401,20 @@ class _AgregarProductoFacturaPageState extends State<AgregarProductoFacturaPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agregar Producto'),
-      ),
-      body: Column(
-        children: [
-          // Fila de categorías
-          if (categorias.isNotEmpty)
-            SizedBox(
-              height: 50,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                itemCount: categorias.length,
-                itemBuilder: (context, index) {
-                  final categoria = categorias[index];
-                  final isSelected = _categoriaSeleccionadaId == categoria.id;
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: FilterChip(
-                      label: Text(categoria.nombre),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        setState(() {
-                          _categoriaSeleccionadaId = categoria.id;
-                          _cargarProductos(categoria.id!);
-                        });
-                      },
-                      backgroundColor: Colors.grey[200],
-                      selectedColor: Colors.blue,
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : Colors.black,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-
-          // Padding y título
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Selecciona un producto',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-
-          // Lista de productos
-          Expanded(
-            child: productosFiltrados.isEmpty
-                ? const Center(
-              child: Text('No hay productos en esta categoría'),
-            )
-                : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: productosFiltrados.length,
-              itemBuilder: (context, index) {
-                final producto = productosFiltrados[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: _construirImagenProducto(producto.imagenPath),
-                    title: Text(
-                      producto.nombre,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      'Sabores: ${producto.sabores.join(', ')}',
-                    ),
-                    trailing: const Icon(Icons.add_circle, color: Colors.blue),
-                    onTap: () => _mostrarDialogoCantidad(producto),
-                    onLongPress: () => _verImagenProducto(producto),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: _construirImagenProducto(producto.imagenPath),
+        title: Text(
+          producto.nombre,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          'Sabores: ${producto.sabores.join(', ')}',
+        ),
+        trailing: const Icon(Icons.add_circle, color: Colors.blue),
+        onTap: () => _mostrarDialogoCantidad(context, producto),
+        onLongPress: () => _verImagenProducto(context, producto),
       ),
     );
   }

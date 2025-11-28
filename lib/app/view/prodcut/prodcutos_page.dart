@@ -1,71 +1,38 @@
-import 'dart:io';
-
 import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
+import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/view/prodcut/crear_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/crear_producto_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_prodcuto_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ProductosPage extends StatefulWidget {
+// ============= PROVIDERS =============
+final categoriasProvider = FutureProvider<List<CategoriaModel>>((ref) async {
+  final dbHelper = DatabaseHelper();
+  return await dbHelper.obtenerCategorias();
+});
+
+final categoriaSeleccionadaProvider = StateProvider<String?>((ref) {
+  final categoriasAsync = ref.watch(categoriasProvider);
+  return categoriasAsync.whenData((categorias) {
+    return categorias.isNotEmpty ? categorias[0].id : null;
+  }).value;
+});
+
+final productosProvider = FutureProvider<List<ProductoModel>>((ref) async {
+  final categoriaId = ref.watch(categoriaSeleccionadaProvider);
+  if (categoriaId == null) return [];
+
+  final dbHelper = DatabaseHelper();
+  return await dbHelper.obtenerProductosPorCategoria(categoriaId);
+});
+
+// ============= PÁGINA =============
+class ProductosPage extends ConsumerWidget {
   const ProductosPage({super.key});
-
-  @override
-  State<ProductosPage> createState() => _ProductosPageState();
-}
-
-class _ProductosPageState extends State<ProductosPage> {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-
-  List<CategoriaModel> categorias = [];
-  List<ProductoModel> productos = [];
-  String? _categoriasSeleccionadaId;
-
-  @override
-  void initState() {
-    super.initState();
-    _cargarCategorias();
-  }
-
-  void _cargarCategorias() async {
-    try {
-      final categoriasCargadas = await _dbHelper.obtenerCategorias();
-      if (mounted) {
-        setState(() {
-          categorias = categoriasCargadas;
-          if (categorias.isNotEmpty) {
-            _categoriasSeleccionadaId = categorias[0].id;
-            _cargarProductos(categorias[0].id!);
-          }
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar categorías: $e')),
-        );
-      }
-    }
-  }
-
-  void _cargarProductos(String categoriaId) async {
-    try {
-      final productosCargados = await _dbHelper.obtenerProductosPorCategoria(categoriaId);
-      if (mounted) {
-        setState(() {
-          productos = productosCargados;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar productos: $e')),
-        );
-      }
-    }
-  }
 
   String _formatearPrecio(double precio) {
     final precioInt = precio.toInt();
@@ -77,7 +44,6 @@ class _ProductosPageState extends State<ProductosPage> {
 
   Widget _construirImagenProducto(String? imagenPath) {
     if (imagenPath != null && imagenPath.isNotEmpty && imagenPath.startsWith('http')) {
-      // Solo mostrar imágenes de Cloudinary
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.network(
@@ -105,7 +71,6 @@ class _ProductosPageState extends State<ProductosPage> {
         ),
       );
     }
-
     return _imagenPorDefecto();
   }
 
@@ -125,7 +90,8 @@ class _ProductosPageState extends State<ProductosPage> {
     );
   }
 
-  void _crearCategoria() async {
+  void _crearCategoria(BuildContext context, WidgetRef ref) async {
+    final dbHelper = DatabaseHelper();
     final nuevaCategoria = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -135,16 +101,16 @@ class _ProductosPageState extends State<ProductosPage> {
 
     if (nuevaCategoria != null) {
       try {
-        await _dbHelper.insertarCategoria(nuevaCategoria);
-        _cargarCategorias();
+        await dbHelper.insertarCategoria(nuevaCategoria);
+        ref.invalidate(categoriaSeleccionadaProvider);
 
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Categoría ${nuevaCategoria.nombre} creada')),
           );
         }
       } catch (e) {
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error: $e')),
           );
@@ -153,7 +119,8 @@ class _ProductosPageState extends State<ProductosPage> {
     }
   }
 
-  void _editarCategoria(CategoriaModel categoria) async {
+  void _editarCategoria(BuildContext context, WidgetRef ref, CategoriaModel categoria) async {
+    final dbHelper = DatabaseHelper();
     final categoriaActualizada = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -163,16 +130,16 @@ class _ProductosPageState extends State<ProductosPage> {
 
     if (categoriaActualizada != null) {
       try {
-        await _dbHelper.actualizarCategoria(categoriaActualizada);
-        _cargarCategorias();
+        await dbHelper.actualizarCategoria(categoriaActualizada);
+        ref.invalidate(categoriaSeleccionadaProvider);
 
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Categoría ${categoriaActualizada.nombre} actualizada')),
           );
         }
       } catch (e) {
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error: $e')),
           );
@@ -181,7 +148,8 @@ class _ProductosPageState extends State<ProductosPage> {
     }
   }
 
-  void _eliminarCategoria(CategoriaModel categoria) {
+  void _eliminarCategoria(BuildContext context, WidgetRef ref, CategoriaModel categoria) {
+    final dbHelper = DatabaseHelper();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -195,17 +163,17 @@ class _ProductosPageState extends State<ProductosPage> {
           TextButton(
             onPressed: () async {
               try {
-                await _dbHelper.eliminarCategoria(categoria.id!);
-                _cargarCategorias();
+                await dbHelper.eliminarCategoria(categoria.id!);
+                ref.invalidate(categoriaSeleccionadaProvider);
                 Navigator.pop(context);
 
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Categoría ${categoria.nombre} eliminada')),
                   );
                 }
               } catch (e) {
-                if (mounted) {
+                if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: $e')),
@@ -220,7 +188,8 @@ class _ProductosPageState extends State<ProductosPage> {
     );
   }
 
-  void _crearProducto() async {
+  void _crearProducto(BuildContext context, WidgetRef ref, List<CategoriaModel> categorias) async {
+    final dbHelper = DatabaseHelper();
     final nuevoProducto = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -230,16 +199,16 @@ class _ProductosPageState extends State<ProductosPage> {
 
     if (nuevoProducto != null) {
       try {
-        await _dbHelper.insertarProducto(nuevoProducto);
-        _cargarProductos(_categoriasSeleccionadaId!);
+        await dbHelper.insertarProducto(nuevoProducto);
+        ref.invalidate(productosProvider);
 
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Producto ${nuevoProducto.nombre} creado')),
           );
         }
       } catch (e) {
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error: $e')),
           );
@@ -248,7 +217,8 @@ class _ProductosPageState extends State<ProductosPage> {
     }
   }
 
-  void _editarProducto(ProductoModel producto) async {
+  void _editarProducto(BuildContext context, WidgetRef ref, ProductoModel producto, List<CategoriaModel> categorias) async {
+    final dbHelper = DatabaseHelper();
     final productoActualizado = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -261,16 +231,16 @@ class _ProductosPageState extends State<ProductosPage> {
 
     if (productoActualizado != null) {
       try {
-        await _dbHelper.actualizarProducto(productoActualizado);
-        _cargarProductos(_categoriasSeleccionadaId!);
+        await dbHelper.actualizarProducto(productoActualizado);
+        ref.invalidate(productosProvider);
 
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Producto ${productoActualizado.nombre} actualizado')),
           );
         }
       } catch (e) {
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error: $e')),
           );
@@ -279,7 +249,8 @@ class _ProductosPageState extends State<ProductosPage> {
     }
   }
 
-  void _eliminarProducto(ProductoModel producto) {
+  void _eliminarProducto(BuildContext context, WidgetRef ref, ProductoModel producto) {
+    final dbHelper = DatabaseHelper();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -293,17 +264,17 @@ class _ProductosPageState extends State<ProductosPage> {
           TextButton(
             onPressed: () async {
               try {
-                await _dbHelper.eliminarProducto(producto.id!);
-                _cargarProductos(_categoriasSeleccionadaId!);
+                await dbHelper.eliminarProducto(producto.id!);
+                ref.invalidate(productosProvider);
                 Navigator.pop(context);
 
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Producto ${producto.nombre} eliminado')),
                   );
                 }
               } catch (e) {
-                if (mounted) {
+                if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: $e')),
@@ -318,7 +289,7 @@ class _ProductosPageState extends State<ProductosPage> {
     );
   }
 
-  void _mostrarMenuFlotante() {
+  void _mostrarMenuFlotante(BuildContext context, WidgetRef ref, List<CategoriaModel> categorias) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -331,7 +302,7 @@ class _ProductosPageState extends State<ProductosPage> {
               title: const Text('Crear Categoría'),
               onTap: () {
                 Navigator.pop(context);
-                _crearCategoria();
+                _crearCategoria(context, ref);
               },
             ),
             ListTile(
@@ -339,7 +310,7 @@ class _ProductosPageState extends State<ProductosPage> {
               title: const Text('Crear Producto'),
               onTap: () {
                 Navigator.pop(context);
-                _crearProducto();
+                _crearProducto(context, ref, categorias);
               },
             ),
           ],
@@ -349,166 +320,237 @@ class _ProductosPageState extends State<ProductosPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categoriasAsync = ref.watch(categoriasProvider);
+    final productosAsync = ref.watch(productosProvider);
+    final categoriaSeleccionada = ref.watch(categoriaSeleccionadaProvider);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Productos'),
+        title: const Text(
+          'Productos',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        elevation: 1,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.blue[800],
       ),
       body: Column(
         children: [
           // Fila de categorías
-          if (categorias.isNotEmpty)
-            SizedBox(
+          categoriasAsync.when(
+            loading: () => const SizedBox(
               height: 60,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                itemCount: categorias.length,
-                itemBuilder: (context, index) {
-                  final categoria = categorias[index];
-                  final isSelected = _categoriasSeleccionadaId == categoria.id;
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (err, stack) => SizedBox(
+              height: 60,
+              child: Center(child: Text('Error: $err')),
+            ),
+            data: (categorias) {
+              if (categorias.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('No hay categorías. Crea una nueva.'),
+                );
+              }
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: GestureDetector(
-                      onLongPress: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text(categoria.nombre),
-                            actions: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _editarCategoria(categoria);
-                                },
-                                child: const Text('Editar'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _eliminarCategoria(categoria);
-                                },
-                                child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Cancelar'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      child: FilterChip(
-                        label: Text(categoria.nombre),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          setState(() {
-                            _categoriasSeleccionadaId = categoria.id;
-                            _cargarProductos(categoria.id!);
-                          });
+              return SizedBox(
+                height: 60,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  itemCount: categorias.length,
+                  itemBuilder: (context, index) {
+                    final categoria = categorias[index];
+                    final isSelected = categoriaSeleccionada == categoria.id;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: GestureDetector(
+                        onLongPress: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Text(categoria.nombre),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    _editarCategoria(context, ref, categoria);
+                                  },
+                                  child: const Text('Editar'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    _eliminarCategoria(context, ref, categoria);
+                                  },
+                                  child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Cancelar'),
+                                ),
+                              ],
+                            ),
+                          );
                         },
-                        backgroundColor: Colors.grey[200],
-                        selectedColor: Colors.blue,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black,
+                        child: FilterChip(
+                          label: Text(categoria.nombre),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            ref.read(categoriaSeleccionadaProvider.notifier).state = categoria.id;
+                          },
+                          backgroundColor: Colors.grey[200],
+                          selectedColor: Colors.blue,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: const Text('No hay categorías. Crea una nueva.'),
-            ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
 
-          // Contenido principal - Lista de Productos
+          // Lista de productos
           Expanded(
-            child: productos.isEmpty
-                ? const Center(
-              child: Text('No hay productos en esta categoría'),
-            )
-                : ListView.builder(
-              padding: const EdgeInsets.all(8),
-              itemCount: productos.length,
-              itemBuilder: (context, index) {
-                final producto = productos[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  child: ListTile(
-                    leading: _construirImagenProducto(producto.imagenPath),
-                    title: Text(
-                      producto.nombre,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Sabor${producto.sabores.length > 1 ? 'es' : ''}: ${producto.sabores.join(', ')}',
-                          style: const TextStyle(fontSize: 12),
+            child: productosAsync.when(
+              loading: () => const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Cargando productos...'),
+                  ],
+                ),
+              ),
+              error: (err, stack) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text('Error: $err'),
+                  ],
+                ),
+              ),
+              data: (productos) {
+                if (productos.isEmpty) {
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.local_drink_outlined,
+                        size: 80,
+                        color: Colors.grey[300],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No hay productos en esta categoría',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w500,
                         ),
-                        Text(
-                          'Precio: \$${_formatearPrecio(producto.precio)}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
+                      ),
+                    ],
+                  );
+                }
+
+                return categoriasAsync.maybeWhen(
+                  data: (categorias) => ListView.builder(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: productos.length,
+                    itemBuilder: (context, index) {
+                      final producto = productos[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        child: ListTile(
+                          leading: _construirImagenProducto(producto.imagenPath),
+                          title: Text(
+                            producto.nombre,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                        if (producto.cantidadPorPaca != null)
-                          Text(
-                            'Cantidad por paca: ${producto.cantidadPorPaca}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Sabor${producto.sabores.length > 1 ? 'es' : ''}: ${producto.sabores.join(', ')}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              Text(
+                                'Precio: \$${_formatearPrecio(producto.precio)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (producto.cantidadPorPaca != null)
+                                Text(
+                                  'Cantidad por paca: ${producto.cantidadPorPaca}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                            ],
                           ),
-                      ],
-                    ),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: Text(producto.nombre),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _editarProducto(producto);
-                              },
-                              child: const Text('Editar'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _eliminarProducto(producto);
-                              },
-                              child: const Text('Eliminar',
-                                  style: TextStyle(color: Colors.red)),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancelar'),
-                            ),
-                          ],
+                          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text(producto.nombre),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      _editarProducto(context, ref, producto, categorias);
+                                    },
+                                    child: const Text('Editar'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      _eliminarProducto(context, ref, producto);
+                                    },
+                                    child: const Text('Eliminar',
+                                        style: TextStyle(color: Colors.red)),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       );
                     },
                   ),
+                  orElse: () => const SizedBox(),
                 );
               },
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _mostrarMenuFlotante,
-        child: const Icon(Icons.add),
+      floatingActionButton: categoriasAsync.maybeWhen(
+        data: (categorias) => FloatingActionButton(
+          onPressed: () => _mostrarMenuFlotante(context, ref, categorias),
+          child: const Icon(Icons.add),
+        ),
+        orElse: () => null,
       ),
     );
   }

@@ -108,7 +108,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
           SnackBar(content: Text('Factura guardada para ${clienteSeleccionado!.nombre}')),
         );
         Future.delayed(const Duration(seconds: 1), () {
-          Navigator.pop(context);
+          Navigator.pop(context, true);
         });
       }
     } catch (e) {
