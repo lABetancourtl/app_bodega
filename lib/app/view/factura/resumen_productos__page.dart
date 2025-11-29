@@ -1,4 +1,6 @@
+import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
+import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:flutter/material.dart';
 
 class ResumenProductosDiaPage extends StatefulWidget {
@@ -16,18 +18,50 @@ class ResumenProductosDiaPage extends StatefulWidget {
 }
 
 class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
+  final DatabaseHelper _dbHelper = DatabaseHelper();
   late TextEditingController _busquedaController;
+  String? _categoriaSeleccionada;
+  Map<String, String> _productosCategorias = {}; // productoId -> categoriaId
+  bool _cargandoCategorias = true;
 
   @override
   void initState() {
     super.initState();
     _busquedaController = TextEditingController();
+    _cargarCategoriasProductos();
   }
 
   @override
   void dispose() {
     _busquedaController.dispose();
     super.dispose();
+  }
+
+  Future<void> _cargarCategoriasProductos() async {
+    try {
+      final productos = await _dbHelper.obtenerTodosProductos();
+      final Map<String, String> categorias = {};
+
+      for (var producto in productos) {
+        if (producto.categoriaId != null) {
+          categorias[producto.id!] = producto.categoriaId!;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _productosCategorias = categorias;
+          _cargandoCategorias = false;
+        });
+      }
+    } catch (e) {
+      print('Error al cargar categorías: $e');
+      if (mounted) {
+        setState(() {
+          _cargandoCategorias = false;
+        });
+      }
+    }
   }
 
   String _formatearFecha(DateTime fecha) {
@@ -76,26 +110,52 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
     return resumen;
   }
 
-  Map<String, Map<String, dynamic>> _filtrarProductosPorBusqueda(
+  Map<String, Map<String, dynamic>> _filtrarProductos(
       Map<String, Map<String, dynamic>> resumen,
       ) {
-    final busqueda = _busquedaController.text.toLowerCase();
-    if (busqueda.isEmpty) {
-      return resumen;
+    var productosFiltrados = resumen;
+
+    // Filtrar por categoría
+    if (_categoriaSeleccionada != null) {
+      productosFiltrados = Map.fromEntries(
+        productosFiltrados.entries.where((entry) {
+          final categoriaDelProducto = _productosCategorias[entry.key];
+          return categoriaDelProducto == _categoriaSeleccionada;
+        }),
+      );
     }
 
-    return Map.fromEntries(
-      resumen.entries.where((entry) {
-        final nombreProducto = (entry.value['nombreProducto'] as String).toLowerCase();
-        return nombreProducto.contains(busqueda);
-      }),
-    );
+    // Filtrar por búsqueda
+    final busqueda = _busquedaController.text.toLowerCase();
+    if (busqueda.isNotEmpty) {
+      productosFiltrados = Map.fromEntries(
+        productosFiltrados.entries.where((entry) {
+          final nombreProducto = (entry.value['nombreProducto'] as String).toLowerCase();
+          return nombreProducto.contains(busqueda);
+        }),
+      );
+    }
+
+    return productosFiltrados;
+  }
+
+  Set<String> _obtenerCategoriasConProductos(Map<String, Map<String, dynamic>> resumen) {
+    final Set<String> categoriasUsadas = {};
+
+    for (var productoId in resumen.keys) {
+      final categoriaId = _productosCategorias[productoId];
+      if (categoriaId != null) {
+        categoriasUsadas.add(categoriaId);
+      }
+    }
+
+    return categoriasUsadas;
   }
 
   @override
   Widget build(BuildContext context) {
     final resumen = _calcularResumenProductos();
-    final resumenFiltrado = _filtrarProductosPorBusqueda(resumen);
+    final resumenFiltrado = _filtrarProductos(resumen);
     final productos = resumenFiltrado.entries.toList();
 
     productos.sort((a, b) =>
@@ -120,6 +180,7 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
       ),
       body: Column(
         children: [
+          // Encabezado con fecha y totales
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -216,6 +277,7 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
             ),
           ),
 
+          // Buscador
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
@@ -252,6 +314,77 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
             ),
           ),
 
+          // Fila de categorías
+          if (!_cargandoCategorias)
+            FutureBuilder(
+              future: _dbHelper.obtenerCategorias(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const SizedBox(height: 50);
+                }
+
+                final todasCategorias = snapshot.data!;
+                final categoriasConProductos = _obtenerCategoriasConProductos(resumen);
+
+                // Filtrar solo las categorías que tienen productos en este resumen
+                final categorias = todasCategorias
+                    .where((cat) => categoriasConProductos.contains(cat.id))
+                    .toList();
+
+                if (categorias.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                return SizedBox(
+                  height: 50,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: FilterChip(
+                          label: const Text('Todas'),
+                          selected: _categoriaSeleccionada == null,
+                          onSelected: (selected) {
+                            setState(() {
+                              _categoriaSeleccionada = null;
+                            });
+                          },
+                          backgroundColor: Colors.grey[200],
+                          selectedColor: Colors.blue,
+                          labelStyle: TextStyle(
+                            color: _categoriaSeleccionada == null ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                      ...categorias.map((categoria) {
+                        final isSelected = _categoriaSeleccionada == categoria.id;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: FilterChip(
+                            label: Text(categoria.nombre),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setState(() {
+                                _categoriaSeleccionada = categoria.id;
+                              });
+                            },
+                            backgroundColor: Colors.grey[200],
+                            selectedColor: Colors.blue,
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : Colors.black,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+          // Lista de productos
           Expanded(
             child: productos.isEmpty
                 ? Center(
@@ -265,7 +398,7 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    _busquedaController.text.isEmpty
+                    _busquedaController.text.isEmpty && _categoriaSeleccionada == null
                         ? 'No hay productos para esta fecha'
                         : 'No se encontraron productos',
                     style: TextStyle(

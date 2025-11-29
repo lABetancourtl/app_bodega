@@ -369,4 +369,22 @@ class DatabaseHelper {
       throw Exception('Error al eliminar factura: $e');
     }
   }
+
+// Reemplaza el método obtenerTodosProductos en database_helper.dart:
+
+  Future<List<ProductoModel>> obtenerTodosProductos() async {
+    try {
+      final snapshot = await _firestore
+          .collection(productosCol)
+          .orderBy('nombre')
+          .get();
+
+      return snapshot.docs.map((doc) {
+        return ProductoModel.fromMap(doc.data(), doc.id);
+      }).toList();
+    } catch (e) {
+      print('Error al obtener todos los productos: $e');
+      return [];
+    }
+  }
 }
