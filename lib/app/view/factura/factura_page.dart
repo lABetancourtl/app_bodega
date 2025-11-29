@@ -4,6 +4,7 @@ import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/service/pdf_service.dart';
 import 'package:app_bodega/app/view/factura/crear_factura_page.dart';
 import 'package:app_bodega/app/view/factura/editar_factura_page.dart';
+import 'package:app_bodega/app/view/factura/resumen_productos__page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -238,6 +239,23 @@ class FacturaPage extends ConsumerWidget {
         elevation: 1,
         backgroundColor: Colors.white,
         foregroundColor: Colors.blue[800],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.inventory_2_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ResumenProductosDiaPage(
+                    facturas: facturasFiltradas,
+                    fecha: fechaState.fechaSeleccionada,
+                  ),
+                ),
+              );
+            },
+            tooltip: 'Ver resumen de productos',
+          ),
+        ],
       ),
       body: Column(
         children: [

@@ -1,5 +1,6 @@
 import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
+import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:app_bodega/app/view/factura/agregar_prodcuto_factura_page.dart';
 import 'package:flutter/material.dart';
 
@@ -45,13 +46,287 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
     }
   }
 
+  void _editarProducto(int index) async {
+    final itemActual = items[index];
+
+    // Obtener información del producto desde la base de datos
+    final producto = await _dbHelper.obtenerProductoPorId(itemActual.productoId);
+
+    if (producto == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se encontró el producto')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    // Mostrar el modal de edición
+    final itemEditado = await _mostrarDialogoEdicion(producto, itemActual);
+
+    if (itemEditado != null) {
+      setState(() {
+        items[index] = itemEditado;
+      });
+    }
+  }
+
+  Future<ItemFacturaModel?> _mostrarDialogoEdicion(
+      ProductoModel producto,
+      ItemFacturaModel itemActual,
+      ) async {
+    final TextEditingController cantidadTotalController =
+    TextEditingController(text: itemActual.cantidadTotal.toString());
+    final Map<String, TextEditingController> controllersPorSabor = {};
+    final Map<String, int> cantidadPorSabor = Map.from(itemActual.cantidadPorSabor);
+
+    // Inicializar controllers con valores actuales
+    for (var sabor in producto.sabores) {
+      final cantidad = cantidadPorSabor[sabor] ?? 0;
+      controllersPorSabor[sabor] = TextEditingController(text: cantidad.toString());
+    }
+
+    // Función para calcular el total
+    int calcularTotal() {
+      return cantidadPorSabor.values.fold(0, (sum, qty) => sum + qty);
+    }
+
+    // Función para formatear precio
+    String formatearPrecio(double precio) {
+      final precioInt = precio.toInt();
+      return precioInt.toString().replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+            (match) => '.',
+      );
+    }
+
+    return await showDialog<ItemFacturaModel>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text(producto.nombre),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // PRODUCTO CON UN SOLO SABOR
+                  if (producto.sabores.length == 1) ...[
+                    TextField(
+                      controller: cantidadTotalController,
+                      keyboardType: TextInputType.number,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: 'Cantidad',
+                        hintText: 'Ej: 12',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.inventory),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+
+                  // PRODUCTO CON MÚLTIPLES SABORES
+                  if (producto.sabores.length > 1) ...[
+                    const Text(
+                      'Distribuir por sabor:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 16),
+                    ...producto.sabores.map((sabor) {
+                      final controller = controllersPorSabor[sabor]!;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                sabor,
+                                style: const TextStyle(fontSize: 15),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 80,
+                              child: TextField(
+                                controller: controller,
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 12,
+                                  ),
+                                ),
+                                onTap: () {
+                                  controller.selection = TextSelection(
+                                    baseOffset: 0,
+                                    extentOffset: controller.text.length,
+                                  );
+                                },
+                                onChanged: (value) {
+                                  final cantidad = int.tryParse(value) ?? 0;
+                                  cantidadPorSabor[sabor] = cantidad;
+                                  setState(() {});
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    const Divider(height: 24),
+                    // Unidades (texto simple)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        '${calcularTotal()} unidades',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    // Total en precio
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'TOTAL:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            '\$${formatearPrecio(calcularTotal() * producto.precio)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  int cantidadTotal;
+
+                  // Validar según tipo de producto
+                  if (producto.sabores.length == 1) {
+                    if (cantidadTotalController.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Por favor ingresa la cantidad')),
+                      );
+                      return;
+                    }
+                    cantidadTotal = int.parse(cantidadTotalController.text);
+
+                    if (cantidadTotal <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('La cantidad debe ser mayor a 0')),
+                      );
+                      return;
+                    }
+                  } else {
+                    cantidadTotal = calcularTotal();
+
+                    if (cantidadTotal <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Debes agregar al menos una unidad')),
+                      );
+                      return;
+                    }
+                  }
+
+                  final itemActualizado = ItemFacturaModel(
+                    productoId: producto.id!,
+                    nombreProducto: producto.nombre,
+                    precioUnitario: producto.precio,
+                    cantidadTotal: cantidadTotal,
+                    cantidadPorSabor: producto.sabores.length > 1
+                        ? cantidadPorSabor
+                        : {producto.sabores[0]: cantidadTotal},
+                    tieneSabores: producto.sabores.length > 1,
+                  );
+
+                  Navigator.pop(context, itemActualizado);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                ),
+                child: const Text(
+                  'Guardar',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _eliminarProducto(int index) {
-    setState(() {
-      items.removeAt(index);
-    });
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar Producto'),
+        content: Text('¿Estás seguro de que deseas eliminar ${items[index].nombreProducto}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                items.removeAt(index);
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _guardarCambios() async {
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes agregar al menos un producto')),
+      );
+      return;
+    }
+
     final facturaActualizada = FacturaModel(
       id: widget.factura.id,
       clienteId: widget.factura.clienteId,
@@ -59,6 +334,9 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
       fecha: widget.factura.fecha,
       items: items,
       estado: widget.factura.estado,
+      negocioCliente: widget.factura.negocioCliente,
+      direccionCliente: widget.factura.direccionCliente,
+      observacionesCliente: widget.factura.observacionesCliente,
     );
 
     try {
@@ -68,14 +346,14 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Factura actualizada para ${widget.factura.nombreCliente}')),
         );
-        Future.delayed(const Duration(seconds: 1), () {
-          Navigator.pop(context);
-        });
+        Navigator.pop(context, facturaActualizada);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al guardar: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar: $e')),
+        );
+      }
     }
   }
 
@@ -169,7 +447,10 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
                             ),
                           ),
                         ),
-                        title: Text(item.nombreProducto),
+                        title: Text(
+                          item.nombreProducto,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -194,6 +475,7 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
                           icon: const Icon(Icons.delete, color: Colors.red),
                           onPressed: () => _eliminarProducto(index),
                         ),
+                        onTap: () => _editarProducto(index),
                       ),
                     );
                   },

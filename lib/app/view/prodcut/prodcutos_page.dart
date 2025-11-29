@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
-import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/view/prodcut/crear_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/crear_producto_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_categoria_page.dart';
@@ -104,7 +103,7 @@ class ProductosPage extends ConsumerWidget {
     if (nuevaCategoria != null) {
       try {
         await dbHelper.insertarCategoria(nuevaCategoria);
-        CacheHelper.invalidarCategorias(ref);
+        ref.invalidate(categoriasProvider);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -133,7 +132,7 @@ class ProductosPage extends ConsumerWidget {
     if (categoriaActualizada != null) {
       try {
         await dbHelper.actualizarCategoria(categoriaActualizada);
-        CacheHelper.invalidarCategorias(ref);
+        ref.invalidate(categoriasProvider);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -166,7 +165,7 @@ class ProductosPage extends ConsumerWidget {
             onPressed: () async {
               try {
                 await dbHelper.eliminarCategoria(categoria.id!);
-                CacheHelper.invalidarCategorias(ref);
+                ref.invalidate(categoriasProvider);
                 Navigator.pop(context);
 
                 if (context.mounted) {
@@ -202,8 +201,7 @@ class ProductosPage extends ConsumerWidget {
     if (nuevoProducto != null) {
       try {
         await dbHelper.insertarProducto(nuevoProducto);
-        CacheHelper.invalidarProductos(ref);
-
+        ref.invalidate(productosProvider);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Producto ${nuevoProducto.nombre} creado')),
@@ -234,7 +232,7 @@ class ProductosPage extends ConsumerWidget {
     if (productoActualizado != null) {
       try {
         await dbHelper.actualizarProducto(productoActualizado);
-        CacheHelper.invalidarProductos(ref);
+        ref.invalidate(productosProvider);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -267,7 +265,7 @@ class ProductosPage extends ConsumerWidget {
             onPressed: () async {
               try {
                 await dbHelper.eliminarProducto(producto.id!);
-                CacheHelper.invalidarProductos(ref);
+                ref.invalidate(productosProvider);
                 Navigator.pop(context);
 
                 if (context.mounted) {
