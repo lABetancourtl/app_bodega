@@ -278,7 +278,7 @@ class ClientesPage extends ConsumerWidget {
           if (nuevoCliente != null) {
             try {
               await dbHelper.insertarCliente(nuevoCliente);
-              ref.invalidate(nuevoCliente);
+              ref.invalidate(clientesProvider); // ✅ CORRECTO - Era ref.invalidate(nuevoCliente)
 
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(

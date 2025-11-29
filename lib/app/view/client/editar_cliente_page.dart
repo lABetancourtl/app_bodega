@@ -1,5 +1,6 @@
 import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class EditarClientePage extends StatefulWidget {
   final ClienteModel cliente;
@@ -16,6 +17,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
   late TextEditingController _nombreController;
   late TextEditingController _nombreNegocioController;
   late TextEditingController _direccionController;
+  late TextEditingController _telefonoController;
   late TextEditingController _observacionesController;
 
   late Ruta _rutaSeleccionada;
@@ -26,6 +28,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
     _nombreController = TextEditingController(text: widget.cliente.nombre);
     _nombreNegocioController = TextEditingController(text: widget.cliente.nombreNegocio);
     _direccionController = TextEditingController(text: widget.cliente.direccion);
+    _telefonoController = TextEditingController(text: widget.cliente.telefono ?? '');
     _observacionesController = TextEditingController(text: widget.cliente.observaciones ?? '');
     _rutaSeleccionada = widget.cliente.ruta;
   }
@@ -35,6 +38,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
     _nombreController.dispose();
     _nombreNegocioController.dispose();
     _direccionController.dispose();
+    _telefonoController.dispose();
     _observacionesController.dispose();
     super.dispose();
   }
@@ -46,6 +50,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
         nombre: _nombreController.text,
         nombreNegocio: _nombreNegocioController.text,
         direccion: _direccionController.text,
+        telefono: _telefonoController.text,
         ruta: _rutaSeleccionada,
         observaciones: _observacionesController.text.isEmpty ? null : _observacionesController.text,
       );
@@ -123,6 +128,25 @@ class _EditarClientePageState extends State<EditarClientePage> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 16),
+
+              // Teléfono (NUEVO)
+              TextFormField(
+                controller: _telefonoController,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                decoration: InputDecoration(
+                  labelText: 'Teléfono (Opcional)',
+                  hintText: 'Ej: 3001234567',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  prefixIcon: const Icon(Icons.phone),
+                ),
               ),
               const SizedBox(height: 16),
 

@@ -257,13 +257,14 @@ class DatabaseHelper {
         'clienteId': factura.clienteId,
         'nombreCliente': factura.nombreCliente,
         'direccionCliente': factura.direccionCliente,
+        'telefonoCliente': factura.telefonoCliente,
         'negocioCliente': factura.negocioCliente,
         'rutaCliente': factura.rutaCliente,
         'observacionesCliente': factura.observacionesCliente,
         'fecha': factura.fecha.toIso8601String(),
         'estado': factura.estado,
         'total': factura.total,
-        'items': factura.items.map((item) => item.toMap()).toList(), // Store items as array
+        'items': factura.items.map((item) => item.toMap()).toList(),
       };
 
       final docRef = await _firestore
@@ -346,6 +347,7 @@ class DatabaseHelper {
         'clienteId': factura.clienteId,
         'nombreCliente': factura.nombreCliente,
         'direccionCliente': factura.direccionCliente,
+        'telefonoCliente': factura.telefonoCliente,
         'negocioCliente': factura.negocioCliente,
         'rutaCliente': factura.rutaCliente,
         'observacionesCliente': factura.observacionesCliente,

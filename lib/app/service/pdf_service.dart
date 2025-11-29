@@ -94,6 +94,12 @@ class PdfService {
                       'Dirección: ${factura.direccionCliente ?? 'N/A'}',
                       style: pw.TextStyle(fontSize: 8),
                     ),
+                    // ✅ AGREGAR ESTA LÍNEA
+                    if (factura.telefonoCliente != null && factura.telefonoCliente!.isNotEmpty)
+                      pw.Text(
+                        'Teléfono: ${factura.telefonoCliente}',
+                        style: pw.TextStyle(fontSize: 8),
+                      ),
                     if (factura.rutaCliente != null)
                       pw.Text(
                         'Ruta: ${factura.rutaCliente}',
@@ -361,6 +367,11 @@ class PdfService {
                   if (factura.negocioCliente != null && factura.negocioCliente!.isNotEmpty)
                     pw.Text(
                       'NEGOCIO: ${factura.negocioCliente}',
+                      style: pw.TextStyle(fontSize: 7),
+                    ),
+                  if (factura.telefonoCliente != null && factura.telefonoCliente!.isNotEmpty)
+                    pw.Text(
+                      'TEL: ${factura.telefonoCliente}',
                       style: pw.TextStyle(fontSize: 7),
                     ),
                   if (factura.rutaCliente != null && factura.rutaCliente!.isNotEmpty)

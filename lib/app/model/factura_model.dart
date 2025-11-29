@@ -70,6 +70,7 @@ class FacturaModel {
   final String clienteId;  // ← CAMBIO: int → String
   final String nombreCliente;
   final String? direccionCliente;
+  final String? telefonoCliente;
   final String? negocioCliente;
   final String? rutaCliente;
   final String? observacionesCliente;
@@ -82,6 +83,7 @@ class FacturaModel {
     required this.clienteId,
     required this.nombreCliente,
     this.direccionCliente,
+    this.telefonoCliente,
     this.negocioCliente,
     this.rutaCliente,
     this.observacionesCliente,
@@ -98,6 +100,7 @@ class FacturaModel {
       'clienteId': clienteId,
       'nombreCliente': nombreCliente,
       'direccionCliente': direccionCliente,
+      'telefonoCliente' : telefonoCliente,
       'negocioCliente': negocioCliente,
       'rutaCliente': rutaCliente,
       'observacionesCliente': observacionesCliente,
@@ -115,6 +118,7 @@ class FacturaModel {
       clienteId: map['clienteId'] as String,  // ← Ahora es String
       nombreCliente: map['nombreCliente'] as String,
       direccionCliente: map['direccionCliente'] as String?,
+      telefonoCliente : map['telefonoCliente'] as String?,
       negocioCliente: map['negocioCliente'] as String?,
       rutaCliente: map['rutaCliente'] as String?,
       observacionesCliente: map['observacionesCliente'] as String?,
@@ -130,6 +134,7 @@ class FacturaModel {
     String? clienteId,  // ← CAMBIO: int? → String?
     String? nombreCliente,
     String? direccionCliente,
+    String? telefonoCliente,
     String? negocioCliente,
     String? rutaCliente,
     String? observacionesCliente,
@@ -142,6 +147,7 @@ class FacturaModel {
       clienteId: clienteId ?? this.clienteId,
       nombreCliente: nombreCliente ?? this.nombreCliente,
       direccionCliente: direccionCliente ?? this.direccionCliente,
+      telefonoCliente : telefonoCliente ?? this.telefonoCliente,
       negocioCliente: negocioCliente ?? this.negocioCliente,
       rutaCliente: rutaCliente ?? this.rutaCliente,
       observacionesCliente: observacionesCliente ?? this.observacionesCliente,
@@ -152,5 +158,5 @@ class FacturaModel {
   }
 
   @override
-  String toString() => 'FacturaModel(id: $id, clienteId: $clienteId, nombreCliente: $nombreCliente, direccionCliente: $direccionCliente, negocioCliente: $negocioCliente, rutaCliente: $rutaCliente, observacionesCliente: $observacionesCliente, fecha: $fecha, items: $items, estado: $estado)';
+  String toString() => 'FacturaModel(id: $id, clienteId: $clienteId, nombreCliente: $nombreCliente, direccionCliente: $direccionCliente, telefonoCliente: $telefonoCliente,negocioCliente: $negocioCliente, rutaCliente: $rutaCliente, observacionesCliente: $observacionesCliente, fecha: $fecha, items: $items, estado: $estado)';
 }
