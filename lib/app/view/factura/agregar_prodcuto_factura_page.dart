@@ -252,6 +252,20 @@ class _ProductoCard extends StatelessWidget {
       controllersPorSabor[sabor] = TextEditingController(text: '0');
     }
 
+    // Función para calcular el total automáticamente
+    int calcularTotal() {
+      return cantidadPorSabor.values.fold(0, (sum, qty) => sum + qty);
+    }
+
+    // Función para formatear precio
+    String _formatearPrecio(double precio) {
+      final precioInt = precio.toInt();
+      return precioInt.toString().replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+            (match) => '.',
+      );
+    }
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -263,27 +277,31 @@ class _ProductoCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextField(
-                    controller: cantidadTotalController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Cantidad Total',
-                      hintText: 'Ej: 12',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  // PRODUCTO CON UN SOLO SABOR
+                  if (producto.sabores.length == 1) ...[
+                    TextField(
+                      controller: cantidadTotalController,
+                      keyboardType: TextInputType.number,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: 'Cantidad',
+                        hintText: 'Ej: 12',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.inventory),
                       ),
-                      prefixIcon: const Icon(Icons.inventory),
+                      onChanged: (_) => setState(() {}),
                     ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 16),
+                  ],
 
+                  // PRODUCTO CON MÚLTIPLES SABORES
                   if (producto.sabores.length > 1) ...[
                     const Text(
                       'Distribuir por sabor:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     ...producto.sabores.map((sabor) {
                       final controller = controllersPorSabor[sabor]!;
 
@@ -292,10 +310,13 @@ class _ProductoCard extends StatelessWidget {
                         child: Row(
                           children: [
                             Expanded(
-                              child: Text(sabor),
+                              child: Text(
+                                sabor,
+                                style: const TextStyle(fontSize: 15),
+                              ),
                             ),
                             SizedBox(
-                              width: 70,
+                              width: 80,
                               child: TextField(
                                 controller: controller,
                                 keyboardType: TextInputType.number,
@@ -307,7 +328,7 @@ class _ProductoCard extends StatelessWidget {
                                   isDense: true,
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 8,
-                                    vertical: 8,
+                                    vertical: 12,
                                   ),
                                 ),
                                 onTap: () {
@@ -326,12 +347,46 @@ class _ProductoCard extends StatelessWidget {
                         ),
                       );
                     }).toList(),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Total asignado: ${cantidadPorSabor.values.fold(0, (sum, qty) => sum + qty)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                    const Divider(height: 24),
+                    // Unidades (texto simple)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        '${calcularTotal()} unidades',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    // Total en precio
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'TOTAL:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            '\$${_formatearPrecio(calcularTotal() * producto.precio)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -345,26 +400,32 @@ class _ProductoCard extends StatelessWidget {
               ),
               ElevatedButton(
                 onPressed: () {
-                  if (cantidadTotalController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Por favor ingresa la cantidad')),
-                    );
-                    return;
-                  }
+                  int cantidadTotal;
 
-                  final cantidadTotal = int.parse(cantidadTotalController.text);
-
-                  if (producto.sabores.length > 1) {
-                    final cantidadAsignada =
-                    cantidadPorSabor.values.fold(0, (sum, qty) => sum + qty);
-
-                    if (cantidadAsignada != cantidadTotal) {
+                  // Validar según tipo de producto
+                  if (producto.sabores.length == 1) {
+                    // Producto con un solo sabor
+                    if (cantidadTotalController.text.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'La suma de sabores ($cantidadAsignada) debe ser igual a $cantidadTotal',
-                          ),
-                        ),
+                        const SnackBar(content: Text('Por favor ingresa la cantidad')),
+                      );
+                      return;
+                    }
+                    cantidadTotal = int.parse(cantidadTotalController.text);
+
+                    if (cantidadTotal <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('La cantidad debe ser mayor a 0')),
+                      );
+                      return;
+                    }
+                  } else {
+                    // Producto con múltiples sabores
+                    cantidadTotal = calcularTotal();
+
+                    if (cantidadTotal <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Debes agregar al menos una unidad')),
                       );
                       return;
                     }

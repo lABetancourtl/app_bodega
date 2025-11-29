@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
@@ -102,7 +104,7 @@ class ProductosPage extends ConsumerWidget {
     if (nuevaCategoria != null) {
       try {
         await dbHelper.insertarCategoria(nuevaCategoria);
-        ref.invalidate(categoriaSeleccionadaProvider);
+        CacheHelper.invalidarCategorias(ref);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -131,7 +133,7 @@ class ProductosPage extends ConsumerWidget {
     if (categoriaActualizada != null) {
       try {
         await dbHelper.actualizarCategoria(categoriaActualizada);
-        ref.invalidate(categoriaSeleccionadaProvider);
+        CacheHelper.invalidarCategorias(ref);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -164,7 +166,7 @@ class ProductosPage extends ConsumerWidget {
             onPressed: () async {
               try {
                 await dbHelper.eliminarCategoria(categoria.id!);
-                ref.invalidate(categoriaSeleccionadaProvider);
+                CacheHelper.invalidarCategorias(ref);
                 Navigator.pop(context);
 
                 if (context.mounted) {
@@ -200,7 +202,7 @@ class ProductosPage extends ConsumerWidget {
     if (nuevoProducto != null) {
       try {
         await dbHelper.insertarProducto(nuevoProducto);
-        ref.invalidate(productosProvider);
+        CacheHelper.invalidarProductos(ref);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -232,7 +234,7 @@ class ProductosPage extends ConsumerWidget {
     if (productoActualizado != null) {
       try {
         await dbHelper.actualizarProducto(productoActualizado);
-        ref.invalidate(productosProvider);
+        CacheHelper.invalidarProductos(ref);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -265,7 +267,7 @@ class ProductosPage extends ConsumerWidget {
             onPressed: () async {
               try {
                 await dbHelper.eliminarProducto(producto.id!);
-                ref.invalidate(productosProvider);
+                CacheHelper.invalidarProductos(ref);
                 Navigator.pop(context);
 
                 if (context.mounted) {
@@ -316,6 +318,66 @@ class ProductosPage extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _verImagenProducto(BuildContext context, ProductoModel producto) {
+    if (producto.imagenPath != null && producto.imagenPath!.isNotEmpty) {
+      if (producto.imagenPath!.startsWith('http')) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => Scaffold(
+              appBar: AppBar(
+                title: const Text('Imagen del Producto'),
+                centerTitle: true,
+              ),
+              body: Center(
+                child: InteractiveViewer(
+                  boundaryMargin: const EdgeInsets.all(20),
+                  minScale: 0.5,
+                  maxScale: 4,
+                  child: Image.network(
+                    producto.imagenPath!,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        return;
+      } else {
+        final file = File(producto.imagenPath!);
+        if (file.existsSync()) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Scaffold(
+                appBar: AppBar(
+                  title: const Text('Imagen del Producto'),
+                  centerTitle: true,
+                ),
+                body: Center(
+                  child: InteractiveViewer(
+                    boundaryMargin: const EdgeInsets.all(20),
+                    minScale: 0.5,
+                    maxScale: 4,
+                    child: Image.file(
+                      file,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          return;
+        }
+      }
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Este producto no tiene imagen')),
     );
   }
 
@@ -534,6 +596,7 @@ class ProductosPage extends ConsumerWidget {
                               ),
                             );
                           },
+                          onLongPress: () => _verImagenProducto(context, producto),
                         ),
                       );
                     },
