@@ -13,10 +13,7 @@ class FiltrosState {
   final String? rutaSeleccionada;
   final String searchQuery;
 
-  FiltrosState({
-    this.rutaSeleccionada,
-    this.searchQuery = '',
-  });
+  FiltrosState({this.rutaSeleccionada, this.searchQuery = ''});
 
   FiltrosState copyWith({
     String? rutaSeleccionada,
@@ -24,11 +21,12 @@ class FiltrosState {
     bool clearRuta = false, // ← nuevo parámetro
   }) {
     return FiltrosState(
-      rutaSeleccionada: clearRuta ? null : rutaSeleccionada ?? this.rutaSeleccionada,
+      rutaSeleccionada: clearRuta
+          ? null
+          : rutaSeleccionada ?? this.rutaSeleccionada,
       searchQuery: searchQuery ?? this.searchQuery,
     );
   }
-
 }
 
 class FiltrosNotifier extends StateNotifier<FiltrosState> {
@@ -42,7 +40,6 @@ class FiltrosNotifier extends StateNotifier<FiltrosState> {
     }
   }
 
-
   void setSearchQuery(String query) {
     state = state.copyWith(searchQuery: query);
   }
@@ -52,7 +49,9 @@ class FiltrosNotifier extends StateNotifier<FiltrosState> {
   }
 }
 
-final filtrosProvider = StateNotifierProvider<FiltrosNotifier, FiltrosState>((ref) {
+final filtrosProvider = StateNotifierProvider<FiltrosNotifier, FiltrosState>((
+  ref,
+) {
   return FiltrosNotifier();
 });
 
@@ -67,30 +66,41 @@ final clientesFiltradosProvider = Provider<List<ClienteModel>>((ref) {
   final clientesAsync = ref.watch(clientesProvider);
   final filtros = ref.watch(filtrosProvider);
 
-  return clientesAsync.whenData((clientes) {
-    return clientes.where((cliente) {
-      // Filtrar por búsqueda
-      final coincideBusqueda = filtros.searchQuery.isEmpty ||
-          cliente.nombre.toLowerCase().contains(filtros.searchQuery.toLowerCase()) ||
-          (cliente.nombreNegocio?.toLowerCase().contains(filtros.searchQuery.toLowerCase()) ?? false);
+  return clientesAsync
+      .whenData((clientes) {
+        return clientes.where((cliente) {
+          // Filtrar por búsqueda
+          final coincideBusqueda =
+              filtros.searchQuery.isEmpty ||
+              cliente.nombre.toLowerCase().contains(
+                filtros.searchQuery.toLowerCase(),
+              ) ||
+              (cliente.nombreNegocio?.toLowerCase().contains(
+                    filtros.searchQuery.toLowerCase(),
+                  ) ??
+                  false);
 
-      // Filtrar por ruta
-      final coincideRuta = filtros.rutaSeleccionada == null ||
-          (cliente.ruta?.toString().split('.').last == filtros.rutaSeleccionada);
+          // Filtrar por ruta
+          final coincideRuta =
+              filtros.rutaSeleccionada == null ||
+              (cliente.ruta?.toString().split('.').last ==
+                  filtros.rutaSeleccionada);
 
-      return coincideBusqueda && coincideRuta;
-    }).toList();
-  }).maybeWhen(
-    data: (data) => data,
-    orElse: () => [],
-  );
+          return coincideBusqueda && coincideRuta;
+        }).toList();
+      })
+      .maybeWhen(data: (data) => data, orElse: () => []);
 });
 
 // ============= PÁGINA =============
 class ClientesPage extends ConsumerWidget {
   const ClientesPage({super.key});
 
-  void _mostrarOpcionesCliente(BuildContext context, WidgetRef ref, ClienteModel cliente) {
+  void _mostrarOpcionesCliente(
+    BuildContext context,
+    WidgetRef ref,
+    ClienteModel cliente,
+  ) {
     final dbHelper = DatabaseHelper();
     showModalBottomSheet(
       context: context,
@@ -107,18 +117,29 @@ class ClientesPage extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    cliente.nombre,
+                    cliente.nombreNegocio,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  if (cliente.nombreNegocio != null)
-                    Text(
-                      cliente.nombreNegocio!,
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  Text(
+                    cliente.nombre,
+                    style:  TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.bold,
                     ),
+                  ),
+                  Text(
+                    cliente.direccion,
+                    style:  TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -143,15 +164,17 @@ class ClientesPage extends ConsumerWidget {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Cliente ${clienteActualizado.nombre} actualizado'),
+                          content: Text(
+                            'Cliente ${clienteActualizado.nombre} actualizado',
+                          ),
                         ),
                       );
                     }
                   } catch (e) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e')),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
                     }
                   }
                 }
@@ -165,14 +188,18 @@ class ClientesPage extends ConsumerWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => HistorialFacturasClientePage(cliente: cliente),
+                    builder: (context) =>
+                        HistorialFacturasClientePage(cliente: cliente),
                   ),
                 );
               },
             ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Eliminar cliente', style: TextStyle(color: Colors.red)),
+              title: const Text(
+                'Eliminar cliente',
+                style: TextStyle(color: Colors.red),
+              ),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _confirmarEliminarCliente(context, ref, cliente);
@@ -184,9 +211,11 @@ class ClientesPage extends ConsumerWidget {
     );
   }
 
-
-
-  void _confirmarEliminarCliente(BuildContext context, WidgetRef ref, ClienteModel cliente) {
+  void _confirmarEliminarCliente(
+    BuildContext context,
+    WidgetRef ref,
+    ClienteModel cliente,
+  ) {
     final dbHelper = DatabaseHelper();
 
     showDialog(
@@ -250,10 +279,7 @@ class ClientesPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(
           'Clientes',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
         elevation: 1,
         backgroundColor: Colors.white,
@@ -274,7 +300,10 @@ class ClientesPage extends ConsumerWidget {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
             ),
           ),
@@ -286,10 +315,30 @@ class ClientesPage extends ConsumerWidget {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               children: [
-                _construirFiltroRuta(ref, 'Todas', null, filtros.rutaSeleccionada == null,),
-                _construirFiltroRuta(ref, 'Ruta 1', 'ruta1', filtros.rutaSeleccionada == 'ruta1',),
-                _construirFiltroRuta(ref, 'Ruta 2', 'ruta2', filtros.rutaSeleccionada == 'ruta2',),
-                _construirFiltroRuta(ref, 'Ruta 3', 'ruta3', filtros.rutaSeleccionada == 'ruta3',),
+                _construirFiltroRuta(
+                  ref,
+                  'Todas',
+                  null,
+                  filtros.rutaSeleccionada == null,
+                ),
+                _construirFiltroRuta(
+                  ref,
+                  'Ruta 1',
+                  'ruta1',
+                  filtros.rutaSeleccionada == 'ruta1',
+                ),
+                _construirFiltroRuta(
+                  ref,
+                  'Ruta 2',
+                  'ruta2',
+                  filtros.rutaSeleccionada == 'ruta2',
+                ),
+                _construirFiltroRuta(
+                  ref,
+                  'Ruta 3',
+                  'ruta3',
+                  filtros.rutaSeleccionada == 'ruta3',
+                ),
               ],
             ),
           ),
@@ -311,7 +360,11 @@ class ClientesPage extends ConsumerWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.red,
+                    ),
                     const SizedBox(height: 16),
                     Text('Error: $err'),
                   ],
@@ -339,9 +392,7 @@ class ClientesPage extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Text(
                         'Agrega tu primer cliente',
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                        ),
+                        style: TextStyle(color: Colors.grey[400]),
                       ),
                     ],
                   );
@@ -352,29 +403,47 @@ class ClientesPage extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final cliente = clientesFiltrados[index];
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       child: ListTile(
                         leading: const Icon(Icons.store, color: Colors.blue),
                         title: Text(
-                          cliente.nombre,
+                          cliente.nombreNegocio,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(cliente.nombreNegocio ?? 'Sin negocio'),
                             Text(
-                              cliente.direccion ?? 'Sin dirección',
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              cliente.nombre ?? 'Sin nombre',
+                              style:  TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.bold
+                              ),
+                            ),
+                            Text(
+                              cliente.direccion ?? 'Sin direccion',
+                              style:  TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.bold
+                              ),
                             ),
                             Text(
                               'Ruta: ${cliente.ruta?.toString().split('.').last.toUpperCase() ?? 'Sin ruta'}',
-                              style: const TextStyle(fontSize: 12, color: Colors.blue),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue,
+                              ),
                             ),
                           ],
                         ),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () => _mostrarOpcionesCliente(context, ref, cliente),
+                        onTap: () =>
+                            _mostrarOpcionesCliente(context, ref, cliente),
                       ),
                     );
                   },
@@ -398,14 +467,16 @@ class ClientesPage extends ConsumerWidget {
 
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Cliente ${nuevoCliente.nombre} agregado')),
+                  SnackBar(
+                    content: Text('Cliente ${nuevoCliente.nombre} agregado'),
+                  ),
                 );
               }
             } catch (e) {
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Error: $e')));
               }
             }
           }
@@ -416,11 +487,11 @@ class ClientesPage extends ConsumerWidget {
   }
 
   Widget _construirFiltroRuta(
-      WidgetRef ref,
-      String label,
-      String? ruta,
-      bool isSelected,
-      ) {
+    WidgetRef ref,
+    String label,
+    String? ruta,
+    bool isSelected,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: FilterChip(
@@ -431,9 +502,7 @@ class ClientesPage extends ConsumerWidget {
         },
         backgroundColor: Colors.grey[200],
         selectedColor: Colors.blue,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.white : Colors.black,
-        ),
+        labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
       ),
     );
   }

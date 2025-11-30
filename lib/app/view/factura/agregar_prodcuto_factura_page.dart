@@ -285,7 +285,6 @@ class _ProductoCard extends StatelessWidget {
                       autofocus: true,
                       decoration: InputDecoration(
                         labelText: 'Cantidad',
-                        hintText: 'Ej: 12',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -463,20 +462,50 @@ class _ProductoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: ListTile(
         leading: _construirImagenProducto(producto.imagenPath),
         title: Text(
           producto.nombre,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text(
-          'Sabores: ${producto.sabores.join(', ')}',
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sabor${producto.sabores.length > 1 ? 'es' : ''}: ${producto.sabores.join(', ')}',
+              style: const TextStyle(fontSize: 12),
+            ),
+            Text(
+              'Precio: \$${_formatearPrecio(producto.precio)}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (producto.cantidadPorPaca != null)
+              Text(
+                'Cantidad por paca: ${producto.cantidadPorPaca}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+          ],
         ),
         trailing: const Icon(Icons.add_circle, color: Colors.blue),
         onTap: () => _mostrarDialogoCantidad(context, producto),
         onLongPress: () => _verImagenProducto(context, producto),
       ),
+    );
+  }
+
+  String _formatearPrecio(double precio) {
+    final precioInt = precio.toInt();
+    return precioInt.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+          (match) => '.',
     );
   }
 }
