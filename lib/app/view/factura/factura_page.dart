@@ -419,51 +419,8 @@ class FacturaPage extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.more_vert),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text(factura.nombreCliente),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      _editarFactura(context, ref, factura);
-                                    },
-                                    child: const Text('Editar'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      _enviarPorWhatsApp(context, factura);
-                                    },
-                                    child: const Text('Enviar por WhatsApp'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      _descargarFactura(context, factura);
-                                    },
-                                    child: const Text('Descargar PDF'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      _eliminarFactura(context, ref, factura);
-                                    },
-                                    child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Cancelar'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () => _mostrarOpcionesFactura(context, ref, factura),
                       ),
                     );
                   },
@@ -479,4 +436,98 @@ class FacturaPage extends ConsumerWidget {
       ),
     );
   }
+
+  void _mostrarOpcionesFactura(BuildContext context, WidgetRef ref, FacturaModel factura,) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            // Encabezado con datos básicos
+            Container(
+              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    factura.nombreCliente,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    factura.direccionCliente,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.normal,
+                      color: Colors.grey
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "Total: \$${_formatearPrecio(
+                      factura.items.fold(
+                        0.0,
+                            (s, item) => s + item.subtotal,
+                      ),
+                    )}",
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+
+            // Editar
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text("Editar factura"),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _editarFactura(context, ref, factura);
+              },
+            ),
+
+            // Enviar por WhatsApp
+            ListTile(
+              leading: const Icon(Icons.chat),
+              title: const Text("Enviar por WhatsApp"),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _enviarPorWhatsApp(context, factura);
+              },
+            ),
+
+            // Descargar PDF
+            ListTile(
+              leading: const Icon(Icons.download),
+              title: const Text("Descargar PDF"),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _descargarFactura(context, factura);
+              },
+            ),
+
+            // Eliminar
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text(
+                "Eliminar factura",
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _eliminarFactura(context, ref, factura);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 }

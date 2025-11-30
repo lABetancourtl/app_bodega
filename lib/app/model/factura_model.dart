@@ -69,7 +69,7 @@ class FacturaModel {
   final String? id;  // ← CAMBIO: int? → String?
   final String clienteId;  // ← CAMBIO: int → String
   final String nombreCliente;
-  final String? direccionCliente;
+  final String direccionCliente;
   final String? telefonoCliente;
   final String? negocioCliente;
   final String? rutaCliente;
@@ -82,7 +82,7 @@ class FacturaModel {
     this.id,
     required this.clienteId,
     required this.nombreCliente,
-    this.direccionCliente,
+    required this.direccionCliente,
     this.telefonoCliente,
     this.negocioCliente,
     this.rutaCliente,
@@ -117,7 +117,7 @@ class FacturaModel {
       id: docId,  // ← Usar el docId de Firestore
       clienteId: map['clienteId'] as String,  // ← Ahora es String
       nombreCliente: map['nombreCliente'] as String,
-      direccionCliente: map['direccionCliente'] as String?,
+      direccionCliente: map['direccionCliente'] as String,
       telefonoCliente : map['telefonoCliente'] as String?,
       negocioCliente: map['negocioCliente'] as String?,
       rutaCliente: map['rutaCliente'] as String?,

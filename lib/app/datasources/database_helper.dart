@@ -389,4 +389,32 @@ class DatabaseHelper {
       return [];
     }
   }
+
+  // Metodo para obtener las facturas de un cliente
+  Future<List<FacturaModel>> obtenerFacturasPorCliente(String clienteId, {int limit = 3}) async {
+    try {
+      final snapshot = await _firestore
+          .collection(facturasCol)
+          .where('clienteId', isEqualTo: clienteId)
+          .orderBy('fecha', descending: true)
+          .limit(limit)
+          .get();
+
+      List<FacturaModel> facturas = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+
+        final items = (data['items'] as List<dynamic>? ?? [])
+            .map((item) => ItemFacturaModel.fromMap(item as Map<String, dynamic>))
+            .toList();
+
+        facturas.add(FacturaModel.fromMap(data, doc.id, items));
+      }
+
+      return facturas;
+    } catch (e) {
+      throw Exception('Error al obtener facturas del cliente: $e');
+    }
+  }
 }

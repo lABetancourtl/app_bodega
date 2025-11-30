@@ -417,70 +417,103 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
 
               // Lista de productos agregados
               Expanded(
-                child: items.isEmpty
-                    ? const Center(
-                  child: Text('No hay productos agregados'),
-                )
-                    : ListView.builder(
+                child: ListView(
                   padding: const EdgeInsets.all(8),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      child: ListTile(
-                        leading: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.black45,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${item.cantidadTotal}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          item.nombreProducto,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (item.tieneSabores)
+                  children: [
+                    // Botón agregar producto (siempre visible)
+                    GestureDetector(
+                      onTap: _agregarProducto,
+                      child: Card(
+                        color: Colors.lightGreen[50],
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children:  [
+                              Icon(Icons.add, size: 30, color: Colors.grey[700]),
+                              SizedBox(width: 12),
                               Text(
-                                'Sabores: ${item.cantidadPorSabor.entries.where((e) => e.value > 0).map((e) => '${e.key} (${e.value})').join(', ')}',
-                                style: const TextStyle(fontSize: 12),
-                              )
-                            else
-                              Text('Cantidad: ${item.cantidadTotal}'),
-                            Text(
-                              'Subtotal: \$${_formatearPrecio(item.subtotal)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold,
+                                "Agregar producto",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Si no hay productos
+                    if (items.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Text('No hay productos agregados'),
+                        ),
+                      ),
+
+                    // Lista de productos
+                    ...items.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        child: ListTile(
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.black45,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${item.cantidadTotal}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
-                          ],
+                          ),
+                          title: Text(item.nombreProducto),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (item.tieneSabores)
+                                Text(
+                                  'Sabores: ${item.cantidadPorSabor.entries.map((e) => '${e.key} (${e.value})').join(', ')}',
+                                  style: const TextStyle(fontSize: 12),
+                                )
+                              else
+                                Text('Cantidad: ${item.cantidadTotal}'),
+                              Text(
+                                'Subtotal: \$${_formatearPrecio(item.subtotal)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          trailing: IconButton(
+                            icon: Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _eliminarProducto(index),
+                          ),
+                          onTap: () => _editarProducto(index),
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _eliminarProducto(index),
-                        ),
-                        onTap: () => _editarProducto(index),
-                      ),
-                    );
-                  },
+                      );
+                    }).toList(),
+                  ],
                 ),
               ),
+
 
               // Total
               Container(
@@ -524,16 +557,16 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
           ),
 
           // Botón flotante posicionado arriba del total
-          Positioned(
-            right: 16,
-            bottom: 74 +
-                MediaQuery.of(context).viewInsets.bottom +
-                MediaQuery.of(context).padding.bottom,
-            child: FloatingActionButton(
-              onPressed: _agregarProducto,
-              child: const Icon(Icons.add),
-            ),
-          ),
+          // Positioned(
+          //   right: 16,
+          //   bottom: 74 +
+          //       MediaQuery.of(context).viewInsets.bottom +
+          //       MediaQuery.of(context).padding.bottom,
+          //   child: FloatingActionButton(
+          //     onPressed: _agregarProducto,
+          //     child: const Icon(Icons.add),
+          //   ),
+          // ),
         ],
       ),
     );

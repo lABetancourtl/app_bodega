@@ -566,34 +566,9 @@ class ProductosPage extends ConsumerWidget {
                           ),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                           onTap: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text(producto.nombre),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      _editarProducto(context, ref, producto, categorias);
-                                    },
-                                    child: const Text('Editar'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      _eliminarProducto(context, ref, producto);
-                                    },
-                                    child: const Text('Eliminar',
-                                        style: TextStyle(color: Colors.red)),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Cancelar'),
-                                  ),
-                                ],
-                              ),
-                            );
+                            _mostrarOpcionesProducto(context, ref, producto, categorias);
                           },
+
                           onLongPress: () => _verImagenProducto(context, producto),
                         ),
                       );
@@ -615,4 +590,101 @@ class ProductosPage extends ConsumerWidget {
       ),
     );
   }
+
+  void _mostrarOpcionesProducto(
+      BuildContext context,
+      WidgetRef ref,
+      ProductoModel producto,
+      List<CategoriaModel> categorias,
+      ) {
+    final dbHelper = DatabaseHelper();
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    producto.nombre,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Precio: \$${_formatearPrecio(producto.precio)}",
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+
+            // EDITAR PRODUCTO
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Editar producto'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+
+                final productoActualizado = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditarProductoPage(
+                      producto: producto,
+                      categorias: categorias,
+                    ),
+                  ),
+                );
+
+                if (productoActualizado != null) {
+                  try {
+                    await dbHelper.actualizarProducto(productoActualizado);
+                    ref.invalidate(productosProvider);
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Producto ${productoActualizado.nombre} actualizado'),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e')),
+                      );
+                    }
+                  }
+                }
+              },
+            ),
+
+
+            // ELIMINAR PRODUCTO
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Eliminar producto', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _eliminarProducto(context, ref, producto);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+
 }
