@@ -19,9 +19,12 @@ class EscPosService {
   }
 
   static String _formatearFecha(DateTime fecha) {
-    return '${fecha.day.toString().padLeft(2, '0')}/'
-        '${fecha.month.toString().padLeft(2, '0')}/'
-        '${fecha.year}';
+    // Agregar un día a la fecha
+    final fechaMasUnDia = fecha.add(const Duration(days: 1));
+
+    return '${fechaMasUnDia.day.toString().padLeft(2, '0')}/'
+        '${fechaMasUnDia.month.toString().padLeft(2, '0')}/'
+        '${fechaMasUnDia.year}';
   }
 
   static String _formatearHora(DateTime fecha) {

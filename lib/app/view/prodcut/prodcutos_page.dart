@@ -16,24 +16,49 @@ final categoriasProvider = FutureProvider<List<CategoriaModel>>((ref) async {
   return await dbHelper.obtenerCategorias();
 });
 
-final categoriaSeleccionadaProvider = StateProvider<String?>((ref) {
+final categoriaIndexProvider = StateProvider<int>((ref) => 0);
+
+final categoriaSeleccionadaProvider = Provider<String?>((ref) {
   final categoriasAsync = ref.watch(categoriasProvider);
-  return categoriasAsync.whenData((categorias) {
-    return categorias.isNotEmpty ? categorias[0].id : null;
-  }).value;
+  final index = ref.watch(categoriaIndexProvider);
+
+  return categoriasAsync.maybeWhen(
+    data: (categorias) {
+      if (categorias.isEmpty || index >= categorias.length) return null;
+      return categorias[index].id;
+    },
+    orElse: () => null,
+  );
 });
 
-final productosProvider = FutureProvider<List<ProductoModel>>((ref) async {
-  final categoriaId = ref.watch(categoriaSeleccionadaProvider);
-  if (categoriaId == null) return [];
-
+// Provider para productos por categoría específica (con family)
+final productosPorCategoriaProvider = FutureProvider.family<List<ProductoModel>, String>((ref, categoriaId) async {
   final dbHelper = DatabaseHelper();
   return await dbHelper.obtenerProductosPorCategoria(categoriaId);
 });
 
 // ============= PÁGINA =============
-class ProductosPage extends ConsumerWidget {
+class ProductosPage extends ConsumerStatefulWidget {
   const ProductosPage({super.key});
+
+  @override
+  ConsumerState<ProductosPage> createState() => _ProductosPageState();
+}
+
+class _ProductosPageState extends ConsumerState<ProductosPage> {
+  late PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   String _formatearPrecio(double precio) {
     final precioInt = precio.toInt();
@@ -91,7 +116,7 @@ class ProductosPage extends ConsumerWidget {
     );
   }
 
-  void _crearCategoria(BuildContext context, WidgetRef ref) async {
+  void _crearCategoria(BuildContext context) async {
     final dbHelper = DatabaseHelper();
     final nuevaCategoria = await Navigator.push(
       context,
@@ -120,7 +145,7 @@ class ProductosPage extends ConsumerWidget {
     }
   }
 
-  void _editarCategoria(BuildContext context, WidgetRef ref, CategoriaModel categoria) async {
+  void _editarCategoria(BuildContext context, CategoriaModel categoria) async {
     final dbHelper = DatabaseHelper();
     final categoriaActualizada = await Navigator.push(
       context,
@@ -149,7 +174,7 @@ class ProductosPage extends ConsumerWidget {
     }
   }
 
-  void _eliminarCategoria(BuildContext context, WidgetRef ref, CategoriaModel categoria) {
+  void _eliminarCategoria(BuildContext context, CategoriaModel categoria) {
     final dbHelper = DatabaseHelper();
     showDialog(
       context: context,
@@ -166,6 +191,14 @@ class ProductosPage extends ConsumerWidget {
               try {
                 await dbHelper.eliminarCategoria(categoria.id!);
                 ref.invalidate(categoriasProvider);
+
+                // Ajustar el índice si es necesario
+                final currentIndex = ref.read(categoriaIndexProvider);
+                if (currentIndex > 0) {
+                  ref.read(categoriaIndexProvider.notifier).state = currentIndex - 1;
+                  _pageController.jumpToPage(currentIndex - 1);
+                }
+
                 Navigator.pop(context);
 
                 if (context.mounted) {
@@ -189,7 +222,7 @@ class ProductosPage extends ConsumerWidget {
     );
   }
 
-  void _crearProducto(BuildContext context, WidgetRef ref, List<CategoriaModel> categorias) async {
+  void _crearProducto(BuildContext context, List<CategoriaModel> categorias) async {
     final dbHelper = DatabaseHelper();
     final nuevoProducto = await Navigator.push(
       context,
@@ -201,7 +234,8 @@ class ProductosPage extends ConsumerWidget {
     if (nuevoProducto != null) {
       try {
         await dbHelper.insertarProducto(nuevoProducto);
-        ref.invalidate(productosProvider);
+        // Invalidar el provider específico de la categoría
+        ref.invalidate(productosPorCategoriaProvider(nuevoProducto.categoriaId));
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Producto ${nuevoProducto.nombre} creado')),
@@ -217,7 +251,7 @@ class ProductosPage extends ConsumerWidget {
     }
   }
 
-  void _editarProducto(BuildContext context, WidgetRef ref, ProductoModel producto, List<CategoriaModel> categorias) async {
+  void _editarProducto(BuildContext context, ProductoModel producto, List<CategoriaModel> categorias) async {
     final dbHelper = DatabaseHelper();
     final productoActualizado = await Navigator.push(
       context,
@@ -232,7 +266,11 @@ class ProductosPage extends ConsumerWidget {
     if (productoActualizado != null) {
       try {
         await dbHelper.actualizarProducto(productoActualizado);
-        ref.invalidate(productosProvider);
+        // Invalidar ambas categorías por si cambió de categoría
+        ref.invalidate(productosPorCategoriaProvider(producto.categoriaId));
+        if (productoActualizado.categoriaId != producto.categoriaId) {
+          ref.invalidate(productosPorCategoriaProvider(productoActualizado.categoriaId));
+        }
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -249,7 +287,7 @@ class ProductosPage extends ConsumerWidget {
     }
   }
 
-  void _eliminarProducto(BuildContext context, WidgetRef ref, ProductoModel producto) {
+  void _eliminarProducto(BuildContext context, ProductoModel producto) {
     final dbHelper = DatabaseHelper();
     showDialog(
       context: context,
@@ -265,7 +303,7 @@ class ProductosPage extends ConsumerWidget {
             onPressed: () async {
               try {
                 await dbHelper.eliminarProducto(producto.id!);
-                ref.invalidate(productosProvider);
+                ref.invalidate(productosPorCategoriaProvider(producto.categoriaId));
                 Navigator.pop(context);
 
                 if (context.mounted) {
@@ -289,7 +327,7 @@ class ProductosPage extends ConsumerWidget {
     );
   }
 
-  void _mostrarMenuFlotante(BuildContext context, WidgetRef ref, List<CategoriaModel> categorias) {
+  void _mostrarMenuFlotante(BuildContext context, List<CategoriaModel> categorias) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -302,7 +340,7 @@ class ProductosPage extends ConsumerWidget {
               title: const Text('Crear Categoría'),
               onTap: () {
                 Navigator.pop(context);
-                _crearCategoria(context, ref);
+                _crearCategoria(context);
               },
             ),
             ListTile(
@@ -310,7 +348,7 @@ class ProductosPage extends ConsumerWidget {
               title: const Text('Crear Producto'),
               onTap: () {
                 Navigator.pop(context);
-                _crearProducto(context, ref, categorias);
+                _crearProducto(context, categorias);
               },
             ),
           ],
@@ -379,11 +417,82 @@ class ProductosPage extends ConsumerWidget {
     );
   }
 
+  Widget _construirListaProductos(List<ProductoModel> productos, List<CategoriaModel> categorias) {
+    if (productos.isEmpty) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.local_drink_outlined,
+            size: 80,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No hay productos en esta categoría',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[500],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: productos.length,
+      itemBuilder: (context, index) {
+        final producto = productos[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: ListTile(
+            leading: _construirImagenProducto(producto.imagenPath),
+            title: Text(
+              producto.nombre,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sabor${producto.sabores.length > 1 ? 'es' : ''}: ${producto.sabores.join(', ')}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                Text(
+                  'Precio: \$${_formatearPrecio(producto.precio)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (producto.cantidadPorPaca != null)
+                  Text(
+                    'Cantidad por paca: ${producto.cantidadPorPaca}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+              ],
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              _mostrarOpcionesProducto(context, producto, categorias);
+            },
+            onLongPress: () => _verImagenProducto(context, producto),
+          ),
+        );
+      },
+    );
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final categoriasAsync = ref.watch(categoriasProvider);
-    final productosAsync = ref.watch(productosProvider);
-    final categoriaSeleccionada = ref.watch(categoriaSeleccionadaProvider);
+    final categoriaIndex = ref.watch(categoriaIndexProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -398,192 +507,166 @@ class ProductosPage extends ConsumerWidget {
         backgroundColor: Colors.white,
         foregroundColor: Colors.blue[800],
       ),
-      body: Column(
-        children: [
-          // Fila de categorías
-          categoriasAsync.when(
-            loading: () => const SizedBox(
-              height: 60,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (err, stack) => SizedBox(
-              height: 60,
-              child: Center(child: Text('Error: $err')),
-            ),
-            data: (categorias) {
-              if (categorias.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('No hay categorías. Crea una nueva.'),
-                );
-              }
+      body: categoriasAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (categorias) {
+          if (categorias.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.category_outlined, size: 80, color: Colors.grey[300]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No hay categorías',
+                    style: TextStyle(fontSize: 18, color: Colors.grey[500]),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => _crearCategoria(context),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Crear Categoría'),
+                  ),
+                ],
+              ),
+            );
+          }
 
-              return SizedBox(
-                height: 60,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  itemCount: categorias.length,
-                  itemBuilder: (context, index) {
-                    final categoria = categorias[index];
-                    final isSelected = categoriaSeleccionada == categoria.id;
+          // Ajustar el índice si está fuera de rango
+          if (categoriaIndex >= categorias.length) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ref.read(categoriaIndexProvider.notifier).state = 0;
+              _pageController.jumpToPage(0);
+            });
+          }
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: GestureDetector(
-                        onLongPress: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: Text(categoria.nombre),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    _editarCategoria(context, ref, categoria);
-                                  },
-                                  child: const Text('Editar'),
+          return Column(
+            children: [
+              // Fila de categorías con indicador
+              Container(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 48,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        itemCount: categorias.length,
+                        itemBuilder: (context, index) {
+                          final categoria = categorias[index];
+                          final isSelected = categoriaIndex == index;
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: GestureDetector(
+                              onLongPress: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: Text(categoria.nombre),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                          _editarCategoria(context, categoria);
+                                        },
+                                        child: const Text('Editar'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                          _eliminarCategoria(context, categoria);
+                                        },
+                                        child: const Text(
+                                          'Eliminar',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Cancelar'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                              child: FilterChip(
+                                label: Text(categoria.nombre),
+                                selected: isSelected,
+                                onSelected: (selected) {
+                                  ref.read(categoriaIndexProvider.notifier).state = index;
+                                  _pageController.animateToPage(
+                                    index,
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                  );
+                                },
+                                backgroundColor: Colors.grey[200],
+                                selectedColor: Colors.blue,
+                                labelStyle: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.black,
                                 ),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    _eliminarCategoria(context, ref, categoria);
-                                  },
-                                  child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Cancelar'),
-                                ),
-                              ],
+                              ),
                             ),
                           );
                         },
-                        child: FilterChip(
-                          label: Text(categoria.nombre),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            ref.read(categoriaSeleccionadaProvider.notifier).state = categoria.id;
-                          },
-                          backgroundColor: Colors.grey[200],
-                          selectedColor: Colors.blue,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black,
-                          ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // PageView con los productos
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: categorias.length,
+                  onPageChanged: (index) {
+                    ref.read(categoriaIndexProvider.notifier).state = index;
+                  },
+                  itemBuilder: (context, pageIndex) {
+                    // Obtener la categoría específica para esta página
+                    final categoria = categorias[pageIndex];
+                    final productosAsync = ref.watch(productosPorCategoriaProvider(categoria.id!));
+
+                    return productosAsync.when(
+                      loading: () => const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Cargando productos...'),
+                          ],
                         ),
                       ),
+                      error: (err, stack) => Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                            const SizedBox(height: 16),
+                            Text('Error: $err'),
+                          ],
+                        ),
+                      ),
+                      data: (productos) {
+                        return _construirListaProductos(productos, categorias);
+                      },
                     );
                   },
                 ),
-              );
-            },
-          ),
-
-          // Lista de productos
-          Expanded(
-            child: productosAsync.when(
-              loading: () => const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Cargando productos...'),
-                  ],
-                ),
               ),
-              error: (err, stack) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                    const SizedBox(height: 16),
-                    Text('Error: $err'),
-                  ],
-                ),
-              ),
-              data: (productos) {
-                if (productos.isEmpty) {
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.local_drink_outlined,
-                        size: 80,
-                        color: Colors.grey[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No hay productos en esta categoría',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[500],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  );
-                }
-
-                return categoriasAsync.maybeWhen(
-                  data: (categorias) => ListView.builder(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: productos.length,
-                    itemBuilder: (context, index) {
-                      final producto = productos[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        child: ListTile(
-                          leading: _construirImagenProducto(producto.imagenPath),
-                          title: Text(
-                            producto.nombre,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Sabor${producto.sabores.length > 1 ? 'es' : ''}: ${producto.sabores.join(', ')}',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                              Text(
-                                'Precio: \$${_formatearPrecio(producto.precio)}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (producto.cantidadPorPaca != null)
-                                Text(
-                                  'Cantidad por paca: ${producto.cantidadPorPaca}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                          onTap: () {
-                            _mostrarOpcionesProducto(context, ref, producto, categorias);
-                          },
-
-                          onLongPress: () => _verImagenProducto(context, producto),
-                        ),
-                      );
-                    },
-                  ),
-                  orElse: () => const SizedBox(),
-                );
-              },
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
       floatingActionButton: categoriasAsync.maybeWhen(
         data: (categorias) => FloatingActionButton(
-          onPressed: () => _mostrarMenuFlotante(context, ref, categorias),
+          onPressed: () => _mostrarMenuFlotante(context, categorias),
           child: const Icon(Icons.add),
         ),
         orElse: () => null,
@@ -593,7 +676,6 @@ class ProductosPage extends ConsumerWidget {
 
   void _mostrarOpcionesProducto(
       BuildContext context,
-      WidgetRef ref,
       ProductoModel producto,
       List<CategoriaModel> categorias,
       ) {
@@ -631,11 +713,12 @@ class ProductosPage extends ConsumerWidget {
 
             // VER IMAGEN PRODUCTO
             ListTile(
-                leading: const Icon(Icons.image,),
-                title: const Text('Ver imagen producto',),
-                onTap: () {
-                  _verImagenProducto(context, producto);
-                }
+              leading: const Icon(Icons.image),
+              title: const Text('Ver imagen producto'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _verImagenProducto(context, producto);
+              },
             ),
 
             // EDITAR PRODUCTO
@@ -658,7 +741,7 @@ class ProductosPage extends ConsumerWidget {
                 if (productoActualizado != null) {
                   try {
                     await dbHelper.actualizarProducto(productoActualizado);
-                    ref.invalidate(productosProvider);
+                    ref.invalidate(productosPorCategoriaProvider(productoActualizado.categoriaId));
 
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -683,7 +766,7 @@ class ProductosPage extends ConsumerWidget {
               title: const Text('Eliminar producto', style: TextStyle(color: Colors.red)),
               onTap: () {
                 Navigator.pop(sheetContext);
-                _eliminarProducto(context, ref, producto);
+                _eliminarProducto(context, producto);
               },
             ),
           ],
@@ -691,7 +774,4 @@ class ProductosPage extends ConsumerWidget {
       ),
     );
   }
-
-
-
 }

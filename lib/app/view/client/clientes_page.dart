@@ -10,20 +10,17 @@ import 'historial_facturas_cliente_page.dart';
 
 // ============= STATE NOTIFIER PARA FILTROS =============
 class FiltrosState {
-  final String? rutaSeleccionada;
+  final int rutaIndex; // Cambiado de String? a int para manejar índices
   final String searchQuery;
 
-  FiltrosState({this.rutaSeleccionada, this.searchQuery = ''});
+  FiltrosState({this.rutaIndex = 0, this.searchQuery = ''});
 
   FiltrosState copyWith({
-    String? rutaSeleccionada,
+    int? rutaIndex,
     String? searchQuery,
-    bool clearRuta = false, // ← nuevo parámetro
   }) {
     return FiltrosState(
-      rutaSeleccionada: clearRuta
-          ? null
-          : rutaSeleccionada ?? this.rutaSeleccionada,
+      rutaIndex: rutaIndex ?? this.rutaIndex,
       searchQuery: searchQuery ?? this.searchQuery,
     );
   }
@@ -32,12 +29,8 @@ class FiltrosState {
 class FiltrosNotifier extends StateNotifier<FiltrosState> {
   FiltrosNotifier() : super(FiltrosState());
 
-  void setRuta(String? ruta) {
-    if (ruta == null) {
-      state = state.copyWith(clearRuta: true);
-    } else {
-      state = state.copyWith(rutaSeleccionada: ruta);
-    }
+  void setRutaIndex(int index) {
+    state = state.copyWith(rutaIndex: index);
   }
 
   void setSearchQuery(String query) {
@@ -50,8 +43,8 @@ class FiltrosNotifier extends StateNotifier<FiltrosState> {
 }
 
 final filtrosProvider = StateNotifierProvider<FiltrosNotifier, FiltrosState>((
-  ref,
-) {
+    ref,
+    ) {
   return FiltrosNotifier();
 });
 
@@ -61,46 +54,72 @@ final clientesProvider = FutureProvider<List<ClienteModel>>((ref) async {
   return await dbHelper.obtenerClientes();
 });
 
+// Lista de rutas disponibles (incluye "Todas")
+const List<Map<String, String?>> rutasDisponibles = [
+  {'label': 'Todas', 'value': null},
+  {'label': 'Ruta 1', 'value': 'ruta1'},
+  {'label': 'Ruta 2', 'value': 'ruta2'},
+  {'label': 'Ruta 3', 'value': 'ruta3'},
+];
+
 // ============= PROVIDER PARA CLIENTES FILTRADOS =============
 final clientesFiltradosProvider = Provider<List<ClienteModel>>((ref) {
   final clientesAsync = ref.watch(clientesProvider);
   final filtros = ref.watch(filtrosProvider);
+  final rutaSeleccionada = rutasDisponibles[filtros.rutaIndex]['value'];
 
   return clientesAsync
       .whenData((clientes) {
-        return clientes.where((cliente) {
-          // Filtrar por búsqueda
-          final coincideBusqueda =
-              filtros.searchQuery.isEmpty ||
+    return clientes.where((cliente) {
+      // Filtrar por búsqueda
+      final coincideBusqueda =
+          filtros.searchQuery.isEmpty ||
               cliente.nombre.toLowerCase().contains(
                 filtros.searchQuery.toLowerCase(),
               ) ||
               (cliente.nombreNegocio?.toLowerCase().contains(
-                    filtros.searchQuery.toLowerCase(),
-                  ) ??
+                filtros.searchQuery.toLowerCase(),
+              ) ??
                   false);
 
-          // Filtrar por ruta
-          final coincideRuta =
-              filtros.rutaSeleccionada == null ||
-              (cliente.ruta?.toString().split('.').last ==
-                  filtros.rutaSeleccionada);
+      // Filtrar por ruta
+      final coincideRuta =
+          rutaSeleccionada == null ||
+              (cliente.ruta?.toString().split('.').last == rutaSeleccionada);
 
-          return coincideBusqueda && coincideRuta;
-        }).toList();
-      })
+      return coincideBusqueda && coincideRuta;
+    }).toList();
+  })
       .maybeWhen(data: (data) => data, orElse: () => []);
 });
 
 // ============= PÁGINA =============
-class ClientesPage extends ConsumerWidget {
+class ClientesPage extends ConsumerStatefulWidget {
   const ClientesPage({super.key});
 
+  @override
+  ConsumerState<ClientesPage> createState() => _ClientesPageState();
+}
+
+class _ClientesPageState extends ConsumerState<ClientesPage> {
+  late PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   void _mostrarOpcionesCliente(
-    BuildContext context,
-    WidgetRef ref,
-    ClienteModel cliente,
-  ) {
+      BuildContext context,
+      ClienteModel cliente,
+      ) {
     final dbHelper = DatabaseHelper();
     showModalBottomSheet(
       context: context,
@@ -126,7 +145,7 @@ class ClientesPage extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text(
                     cliente.nombre,
-                    style:  TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       color: Colors.grey[600],
                       fontWeight: FontWeight.bold,
@@ -134,7 +153,7 @@ class ClientesPage extends ConsumerWidget {
                   ),
                   Text(
                     cliente.direccion,
-                    style:  TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       color: Colors.grey[600],
                       fontWeight: FontWeight.bold,
@@ -202,7 +221,7 @@ class ClientesPage extends ConsumerWidget {
               ),
               onTap: () {
                 Navigator.pop(sheetContext);
-                _confirmarEliminarCliente(context, ref, cliente);
+                _confirmarEliminarCliente(context, cliente);
               },
             ),
           ],
@@ -212,10 +231,9 @@ class ClientesPage extends ConsumerWidget {
   }
 
   void _confirmarEliminarCliente(
-    BuildContext context,
-    WidgetRef ref,
-    ClienteModel cliente,
-  ) {
+      BuildContext context,
+      ClienteModel cliente,
+      ) {
     final dbHelper = DatabaseHelper();
 
     showDialog(
@@ -268,10 +286,88 @@ class ClientesPage extends ConsumerWidget {
     );
   }
 
+  Widget _construirListaClientes(List<ClienteModel> clientesFiltrados) {
+    if (clientesFiltrados.isEmpty) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.people_outline,
+            size: 80,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No hay clientes',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[500],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Agrega tu primer cliente',
+            style: TextStyle(color: Colors.grey[400]),
+          ),
+        ],
+      );
+    }
+
+    return ListView.builder(
+      itemCount: clientesFiltrados.length,
+      itemBuilder: (context, index) {
+        final cliente = clientesFiltrados[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
+          child: ListTile(
+            leading: const Icon(Icons.store, color: Colors.blue),
+            title: Text(
+              cliente.nombreNegocio,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  cliente.nombre ?? 'Sin nombre',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  cliente.direccion ?? 'Sin direccion',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Ruta: ${cliente.ruta?.toString().split('.').last.toUpperCase() ?? 'Sin ruta'}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () => _mostrarOpcionesCliente(context, cliente),
+          ),
+        );
+      },
+    );
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final clientesAsync = ref.watch(clientesProvider);
-    final clientesFiltrados = ref.watch(clientesFiltradosProvider);
     final filtros = ref.watch(filtrosProvider);
     final dbHelper = DatabaseHelper();
 
@@ -308,42 +404,50 @@ class ClientesPage extends ConsumerWidget {
             ),
           ),
 
-          // Fila de rutas
-          SizedBox(
-            height: 50,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          // Fila de rutas con indicador
+          Container(
+            padding: const EdgeInsets.only(top: 4, bottom: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _construirFiltroRuta(
-                  ref,
-                  'Todas',
-                  null,
-                  filtros.rutaSeleccionada == null,
-                ),
-                _construirFiltroRuta(
-                  ref,
-                  'Ruta 1',
-                  'ruta1',
-                  filtros.rutaSeleccionada == 'ruta1',
-                ),
-                _construirFiltroRuta(
-                  ref,
-                  'Ruta 2',
-                  'ruta2',
-                  filtros.rutaSeleccionada == 'ruta2',
-                ),
-                _construirFiltroRuta(
-                  ref,
-                  'Ruta 3',
-                  'ruta3',
-                  filtros.rutaSeleccionada == 'ruta3',
+                SizedBox(
+                  height: 48,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    itemCount: rutasDisponibles.length,
+                    itemBuilder: (context, index) {
+                      final ruta = rutasDisponibles[index];
+                      final isSelected = filtros.rutaIndex == index;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: FilterChip(
+                          label: Text(ruta['label']!),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            ref.read(filtrosProvider.notifier).setRutaIndex(index);
+                            _pageController.animateToPage(
+                              index,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                          backgroundColor: Colors.grey[200],
+                          selectedColor: Colors.blue,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
           ),
 
-          // Lista de clientes
+          // PageView con lista de clientes
           Expanded(
             child: clientesAsync.when(
               loading: () => const Center(
@@ -371,81 +475,15 @@ class ClientesPage extends ConsumerWidget {
                 ),
               ),
               data: (clientes) {
-                if (clientesFiltrados.isEmpty) {
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.people_outline,
-                        size: 80,
-                        color: Colors.grey[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No hay clientes',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[500],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Agrega tu primer cliente',
-                        style: TextStyle(color: Colors.grey[400]),
-                      ),
-                    ],
-                  );
-                }
-
-                return ListView.builder(
-                  itemCount: clientesFiltrados.length,
-                  itemBuilder: (context, index) {
-                    final cliente = clientesFiltrados[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: ListTile(
-                        leading: const Icon(Icons.store, color: Colors.blue),
-                        title: Text(
-                          cliente.nombreNegocio,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              cliente.nombre ?? 'Sin nombre',
-                              style:  TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.bold
-                              ),
-                            ),
-                            Text(
-                              cliente.direccion ?? 'Sin direccion',
-                              style:  TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.bold
-                              ),
-                            ),
-                            Text(
-                              'Ruta: ${cliente.ruta?.toString().split('.').last.toUpperCase() ?? 'Sin ruta'}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ],
-                        ),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () =>
-                            _mostrarOpcionesCliente(context, ref, cliente),
-                      ),
-                    );
+                return PageView.builder(
+                  controller: _pageController,
+                  itemCount: rutasDisponibles.length,
+                  onPageChanged: (index) {
+                    ref.read(filtrosProvider.notifier).setRutaIndex(index);
+                  },
+                  itemBuilder: (context, pageIndex) {
+                    final clientesFiltrados = ref.watch(clientesFiltradosProvider);
+                    return _construirListaClientes(clientesFiltrados);
                   },
                 );
               },
@@ -482,27 +520,6 @@ class ClientesPage extends ConsumerWidget {
           }
         },
         child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  Widget _construirFiltroRuta(
-    WidgetRef ref,
-    String label,
-    String? ruta,
-    bool isSelected,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          ref.read(filtrosProvider.notifier).setRuta(ruta);
-        },
-        backgroundColor: Colors.grey[200],
-        selectedColor: Colors.blue,
-        labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
       ),
     );
   }
