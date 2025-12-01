@@ -6,9 +6,11 @@ import 'package:app_bodega/app/view/factura/crear_factura_page.dart';
 import 'package:app_bodega/app/view/factura/editar_factura_page.dart';
 import 'package:app_bodega/app/view/factura/resumen_productos__page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../service/esc_pos_service.dart';
 
 // ============= STATE NOTIFIER PARA FECHA =============
 class FechaState {
@@ -89,33 +91,33 @@ class FacturaPage extends ConsumerWidget {
     }
   }
 
-  Future<void> _enviarPorWhatsApp(BuildContext context, FacturaModel factura) async {
-    try {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Generando PDF y abriendo WhatsApp...'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-
-      final pdfFile = await PdfService.generarPDF(factura);
-      final xFile = XFile(pdfFile.path, mimeType: 'application/pdf');
-
-      await Share.shareXFiles(
-        [xFile],
-        text: 'Factura de ${factura.nombreCliente}',
-        subject: 'Factura #${factura.id}',
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al preparar PDF: $e')),
-        );
-      }
-    }
-  }
+  // Future<void> _enviarPorWhatsApp(BuildContext context, FacturaModel factura) async {
+  //   try {
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(
+  //           content: Text('Generando PDF y abriendo WhatsApp...'),
+  //           duration: Duration(seconds: 2),
+  //         ),
+  //       );
+  //     }
+  //
+  //     final pdfFile = await PdfService.generarPDF(factura);
+  //     final xFile = XFile(pdfFile.path, mimeType: 'application/pdf');
+  //
+  //     await Share.shareXFiles(
+  //       [xFile],
+  //       text: 'Factura de ${factura.nombreCliente}',
+  //       subject: 'Factura #${factura.id}',
+  //     );
+  //   } catch (e) {
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('Error al preparar PDF: $e')),
+  //       );
+  //     }
+  //   }
+  // }
 
   void _editarFactura(BuildContext context, WidgetRef ref, FacturaModel factura) async {
     await Navigator.push(
@@ -167,13 +169,186 @@ class FacturaPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _descargarFactura(BuildContext context, FacturaModel factura) async {
+  // Future<void> _descargarFacturaPDF(BuildContext context, FacturaModel factura) async {
+  //   try {
+  //     await PdfService.generarYDescargarPDF(factura);
+  //   } catch (e) {
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('Error al descargar: $e')),
+  //       );
+  //     }
+  //   }
+  // }
+
+  Future<void> _descargarFacturaPOS(BuildContext context, FacturaModel factura) async {
     try {
-      await PdfService.generarYDescargarPDF(factura);
+      final opcion = await showModalBottomSheet<String>(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) {
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Selecciona el formato:',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[1000],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 5),
+
+                // Botón PDF
+                ListTile(
+                  leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                  title: const Text('Descargar PDF'),
+                  subtitle: const Text('Guardar como PDF (80mm)'),
+                  onTap: () => Navigator.pop(context, 'pdf'),
+                ),
+
+                // Botón Ticket ESC/POS (Bluetooth)
+                ListTile(
+                  leading: const Icon(Icons.bluetooth, color: Colors.blue),
+                  title: const Text('Imprimir por Bluetooth'),
+                  subtitle: const Text('Enviar a impresora térmica'),
+                  onTap: () => Navigator.pop(context, 'bluetooth'),
+                ),
+
+                const SizedBox(height: 12),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (opcion == null) return;
+
+      // Mostrar indicador de carga
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+
+      if (opcion == 'pdf') {
+        // Generar y descargar PDF con formato de ticket 80mm
+        await EscPosService.descargarTicketPDF(factura);
+
+        if (context.mounted) {
+          Navigator.pop(context); // Cerrar indicador de carga
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('PDF generado correctamente'),
+              backgroundColor: Colors.grey,
+            ),
+          );
+        }
+      } else if (opcion == 'bluetooth') {
+        // Buscar impresoras Bluetooth
+        List<BluetoothDevice> impresoras = await EscPosService.escanearImpresorasBluetooth();
+
+        if (context.mounted) {
+          Navigator.pop(context); // Cerrar indicador de carga
+        }
+
+        if (impresoras.isEmpty) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No se encontraron impresoras Bluetooth'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
+
+        // Mostrar diálogo para seleccionar impresora
+        if (context.mounted) {
+          final impresoraSeleccionada = await showDialog<BluetoothDevice>(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Seleccionar Impresora'),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: impresoras.length,
+                    itemBuilder: (context, index) {
+                      final impresora = impresoras[index];
+                      return ListTile(
+                        leading: const Icon(Icons.print, color: Colors.blue),
+                        title: Text(impresora.platformName.isNotEmpty
+                            ? impresora.platformName
+                            : 'Impresora ${index + 1}'),
+                        subtitle: Text(impresora.remoteId.toString()),
+                        onTap: () => Navigator.pop(context, impresora),
+                      );
+                    },
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (impresoraSeleccionada == null) return;
+
+          // Mostrar indicador de carga nuevamente
+          if (context.mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          // Imprimir por Bluetooth
+          await EscPosService.imprimirTicketBluetoothConDispositivo(
+            factura,
+            impresoraSeleccionada,
+          );
+
+          if (context.mounted) {
+            Navigator.pop(context); // Cerrar indicador de carga
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Ticket enviado a impresora'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      }
     } catch (e) {
       if (context.mounted) {
+        // Cerrar indicador de carga si está abierto
+        Navigator.of(context).pop();
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al descargar: $e')),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -492,23 +667,32 @@ class FacturaPage extends ConsumerWidget {
               },
             ),
 
-            // Enviar por WhatsApp
-            ListTile(
-              leading: const Icon(Icons.chat),
-              title: const Text("Enviar por WhatsApp"),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _enviarPorWhatsApp(context, factura);
-              },
-            ),
+            // // Enviar por WhatsApp
+            // ListTile(
+            //   leading: const Icon(Icons.chat),
+            //   title: const Text("Enviar por WhatsApp"),
+            //   onTap: () {
+            //     Navigator.pop(sheetContext);
+            //     _enviarPorWhatsApp(context, factura);
+            //   },
+            // ),
 
-            // Descargar PDF
+            // // Descargar PDF
+            // ListTile(
+            //   leading: const Icon(Icons.download),
+            //   title: const Text("Descargar PDF"),
+            //   onTap: () {
+            //     Navigator.pop(sheetContext);
+            //     _descargarFacturaPDF(context, factura);
+            //   },
+            // ),
+
             ListTile(
               leading: const Icon(Icons.download),
-              title: const Text("Descargar PDF"),
+              title: const Text("Comprobante"),
               onTap: () {
                 Navigator.pop(sheetContext);
-                _descargarFactura(context, factura);
+                _descargarFacturaPOS(context, factura);
               },
             ),
 

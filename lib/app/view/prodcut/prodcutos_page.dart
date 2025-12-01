@@ -629,6 +629,15 @@ class ProductosPage extends ConsumerWidget {
               ),
             ),
 
+            // VER IMAGEN PRODUCTO
+            ListTile(
+                leading: const Icon(Icons.image,),
+                title: const Text('Ver imagen producto',),
+                onTap: () {
+                  _verImagenProducto(context, producto);
+                }
+            ),
+
             // EDITAR PRODUCTO
             ListTile(
               leading: const Icon(Icons.edit),
@@ -668,8 +677,6 @@ class ProductosPage extends ConsumerWidget {
                 }
               },
             ),
-
-
             // ELIMINAR PRODUCTO
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
