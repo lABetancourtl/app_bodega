@@ -267,7 +267,7 @@ class FacturaPage extends ConsumerWidget {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('No se encontraron impresoras Bluetooth'),
-                backgroundColor: Colors.orange,
+                backgroundColor: Colors.grey,
               ),
             );
           }

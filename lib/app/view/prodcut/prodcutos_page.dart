@@ -251,41 +251,41 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     }
   }
 
-  void _editarProducto(BuildContext context, ProductoModel producto, List<CategoriaModel> categorias) async {
-    final dbHelper = DatabaseHelper();
-    final productoActualizado = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditarProductoPage(
-          producto: producto,
-          categorias: categorias,
-        ),
-      ),
-    );
-
-    if (productoActualizado != null) {
-      try {
-        await dbHelper.actualizarProducto(productoActualizado);
-        // Invalidar ambas categorías por si cambió de categoría
-        ref.invalidate(productosPorCategoriaProvider(producto.categoriaId));
-        if (productoActualizado.categoriaId != producto.categoriaId) {
-          ref.invalidate(productosPorCategoriaProvider(productoActualizado.categoriaId));
-        }
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Producto ${productoActualizado.nombre} actualizado')),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
-        }
-      }
-    }
-  }
+  // void _editarProducto(BuildContext context, ProductoModel producto, List<CategoriaModel> categorias) async {
+  //   final dbHelper = DatabaseHelper();
+  //   final productoActualizado = await Navigator.push(
+  //     context,
+  //     MaterialPageRoute(
+  //       builder: (context) => EditarProductoPage(
+  //         producto: producto,
+  //         categorias: categorias,
+  //       ),
+  //     ),
+  //   );
+  //
+  //   if (productoActualizado != null) {
+  //     try {
+  //       await dbHelper.actualizarProducto(productoActualizado);
+  //       // Invalidar ambas categorías por si cambió de categoría
+  //       ref.invalidate(productosPorCategoriaProvider(producto.categoriaId));
+  //       if (productoActualizado.categoriaId != producto.categoriaId) {
+  //         ref.invalidate(productosPorCategoriaProvider(productoActualizado.categoriaId));
+  //       }
+  //
+  //       if (context.mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(content: Text('Producto ${productoActualizado.nombre} actualizado')),
+  //         );
+  //       }
+  //     } catch (e) {
+  //       if (context.mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(content: Text('Error: $e')),
+  //         );
+  //       }
+  //     }
+  //   }
+  // }
 
   void _eliminarProducto(BuildContext context, ProductoModel producto) {
     final dbHelper = DatabaseHelper();

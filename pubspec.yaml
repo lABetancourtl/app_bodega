@@ -50,6 +50,9 @@ dependencies:
   esc_pos_printer_plus: ^0.1.1
   flutter_blue_plus: ^1.32.5
   permission_handler: ^11.3.1
+  geolocator: ^10.0.0
+  flutter_map: ^6.0.0
+  latlong2: ^0.9.0
 
 
   # The following adds the Cupertino Icons font to your application.

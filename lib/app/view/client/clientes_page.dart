@@ -3,6 +3,7 @@ import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/view/client/crear_cliente_page.dart';
 import 'package:app_bodega/app/view/client/editar_cliente_page.dart';
+import 'package:app_bodega/app/view/client/view_ubicacion_cliente_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -42,9 +43,7 @@ class FiltrosNotifier extends StateNotifier<FiltrosState> {
   }
 }
 
-final filtrosProvider = StateNotifierProvider<FiltrosNotifier, FiltrosState>((
-    ref,
-    ) {
+final filtrosProvider = StateNotifierProvider<FiltrosNotifier, FiltrosState>((ref) {
   return FiltrosNotifier();
 });
 
@@ -52,6 +51,21 @@ final filtrosProvider = StateNotifierProvider<FiltrosNotifier, FiltrosState>((
 final clientesProvider = FutureProvider<List<ClienteModel>>((ref) async {
   final dbHelper = DatabaseHelper();
   return await dbHelper.obtenerClientes();
+});
+
+final clientesPorRutaProvider = FutureProvider.family<List<ClienteModel>, String?>((ref, rutaValue) async {
+  final clientesAsync = ref.watch(clientesProvider);
+
+  return clientesAsync.whenData((clientes) {
+    if (rutaValue == null) {
+      // Si es "Todas", devolver todos los clientes
+      return clientes;
+    }
+    // Filtrar por ruta específica
+    return clientes.where((cliente) {
+      return cliente.ruta?.toString().split('.').last == rutaValue;
+    }).toList();
+  }).value ?? [];
 });
 
 // Lista de rutas disponibles (incluye "Todas")
@@ -62,16 +76,16 @@ const List<Map<String, String?>> rutasDisponibles = [
   {'label': 'Ruta 3', 'value': 'ruta3'},
 ];
 
-// ============= PROVIDER PARA CLIENTES FILTRADOS =============
 final clientesFiltradosProvider = Provider<List<ClienteModel>>((ref) {
-  final clientesAsync = ref.watch(clientesProvider);
   final filtros = ref.watch(filtrosProvider);
   final rutaSeleccionada = rutasDisponibles[filtros.rutaIndex]['value'];
 
-  return clientesAsync
-      .whenData((clientes) {
+  // Usar el provider cacheado por ruta
+  final clientesPorRuta = ref.watch(clientesPorRutaProvider(rutaSeleccionada));
+
+  return clientesPorRuta.whenData((clientes) {
+    // Solo aplicar filtro de búsqueda
     return clientes.where((cliente) {
-      // Filtrar por búsqueda
       final coincideBusqueda =
           filtros.searchQuery.isEmpty ||
               cliente.nombre.toLowerCase().contains(
@@ -81,16 +95,9 @@ final clientesFiltradosProvider = Provider<List<ClienteModel>>((ref) {
                 filtros.searchQuery.toLowerCase(),
               ) ??
                   false);
-
-      // Filtrar por ruta
-      final coincideRuta =
-          rutaSeleccionada == null ||
-              (cliente.ruta?.toString().split('.').last == rutaSeleccionada);
-
-      return coincideBusqueda && coincideRuta;
+      return coincideBusqueda;
     }).toList();
-  })
-      .maybeWhen(data: (data) => data, orElse: () => []);
+  }).maybeWhen(data: (data) => data, orElse: () => []);
 });
 
 // ============= PÁGINA =============
@@ -162,6 +169,20 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                 ],
               ),
             ),
+            if (cliente.latitud != null && cliente.longitud != null)
+              ListTile(
+                leading: const Icon(Icons.map, color: Colors.blue),
+                title: const Text('Ver en mapa'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ViewUbicacionClientePage(cliente: cliente),
+                    ),
+                  );
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.edit),
               title: const Text('Editar cliente'),
@@ -447,7 +468,6 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
             ),
           ),
 
-          // PageView con lista de clientes
           Expanded(
             child: clientesAsync.when(
               loading: () => const Center(
@@ -482,8 +502,52 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                     ref.read(filtrosProvider.notifier).setRutaIndex(index);
                   },
                   itemBuilder: (context, pageIndex) {
-                    final clientesFiltrados = ref.watch(clientesFiltradosProvider);
-                    return _construirListaClientes(clientesFiltrados);
+                    final rutaValue = rutasDisponibles[pageIndex]['value'];
+                    final clientesPorRutaAsync = ref.watch(clientesPorRutaProvider(rutaValue));
+
+                    return clientesPorRutaAsync.when(
+                      loading: () => const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Cargando clientes...'),
+                          ],
+                        ),
+                      ),
+                      error: (err, stack) => Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(height: 16),
+                            Text('Error: $err'),
+                          ],
+                        ),
+                      ),
+                      data: (clientesPorRuta) {
+                        // Aplicar búsqueda
+                        final clientesFiltrados = clientesPorRuta.where((cliente) {
+                          final coincideBusqueda =
+                              filtros.searchQuery.isEmpty ||
+                                  cliente.nombre.toLowerCase().contains(
+                                    filtros.searchQuery.toLowerCase(),
+                                  ) ||
+                                  (cliente.nombreNegocio?.toLowerCase().contains(
+                                    filtros.searchQuery.toLowerCase(),
+                                  ) ??
+                                      false);
+                          return coincideBusqueda;
+                        }).toList();
+
+                        return _construirListaClientes(clientesFiltrados);
+                      },
+                    );
                   },
                 );
               },

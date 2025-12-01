@@ -10,6 +10,8 @@ class ClienteModel {
   final String telefono;
   final Ruta ruta;
   final String? observaciones;
+  final double? latitud;    // NUEVO: Latitud del negocio
+  final double? longitud;   // NUEVO: Longitud del negocio
 
   ClienteModel({
     this.id,
@@ -19,6 +21,8 @@ class ClienteModel {
     required this.telefono,
     required this.ruta,
     this.observaciones,
+    this.latitud,       // NUEVO
+    this.longitud,      // NUEVO
   });
 
   // Convertir a Map (para guardar en Firestore)
@@ -30,6 +34,8 @@ class ClienteModel {
       'telefono': telefono,
       'ruta': ruta.toString().split('.').last,
       'observaciones': observaciones,
+      'latitud': latitud,    // NUEVO
+      'longitud': longitud,  // NUEVO
     };
   }
 
@@ -46,6 +52,8 @@ class ClienteModel {
         orElse: () => Ruta.ruta1,
       ),
       observaciones: map['observaciones'] as String?,
+      latitud: (map['latitud'] as num?)?.toDouble(),    // NUEVO
+      longitud: (map['longitud'] as num?)?.toDouble(),  // NUEVO
     );
   }
 
@@ -58,6 +66,8 @@ class ClienteModel {
     String? telefono,
     Ruta? ruta,
     String? observaciones,
+    double? latitud,
+    double? longitud,
   }) {
     return ClienteModel(
       id: id ?? this.id,
@@ -67,9 +77,11 @@ class ClienteModel {
       telefono: telefono ?? this.telefono,
       ruta: ruta ?? this.ruta,
       observaciones: observaciones ?? this.observaciones,
+      latitud: latitud ?? this.latitud,
+      longitud: longitud ?? this.longitud,
     );
   }
 
   @override
-  String toString() => 'ClienteModel(id: $id, nombre: $nombre, nombreNegocio: $nombreNegocio, direccion: $direccion, telefono: $telefono, ruta: $ruta, observaciones: $observaciones)';
+  String toString() => 'ClienteModel(id: $id, nombre: $nombre, nombreNegocio: $nombreNegocio, direccion: $direccion, telefono: $telefono, ruta: $ruta, observaciones: $observaciones, latitud: $latitud, longitud: $longitud)';
 }

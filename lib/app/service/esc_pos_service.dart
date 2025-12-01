@@ -417,9 +417,9 @@ class EscPosService {
         if (name.contains('printer') ||
             name.contains('pos') ||
             name.contains('bluetooth printer') ||
-            name.contains('rp') || // Común en impresoras Rongta
-            name.contains('mtp') || // Común en otras impresoras
-            name.contains('thermal')) { // Impresoras térmicas
+            name.contains('rp') ||
+            name.contains('mtp') ||
+            name.contains('thermal')) {
           impresoras.add(device);
         }
       }
@@ -757,7 +757,7 @@ class EscPosService {
     final int totalUnidades = factura.items.fold(0, (sum, item) => sum + item.cantidadTotal);
     const int ancho = 48;
 
-    buffer.writeln(_centrar('BODEGA', ancho));
+    buffer.writeln(_centrar('DISTRIBUIDORA', ancho));
     buffer.writeln(_centrar('COMPROBANTE DE ENTREGA', ancho));
     buffer.writeln('=' * ancho);
     buffer.writeln();

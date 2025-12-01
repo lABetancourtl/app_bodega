@@ -1,4 +1,5 @@
 import 'package:app_bodega/app/model/cliente_model.dart';
+import 'package:app_bodega/app/service/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -19,6 +20,9 @@ class _CrearClientePageState extends State<CrearClientePage> {
   final TextEditingController _observacionesController = TextEditingController();
 
   Ruta? _rutaSeleccionada = Ruta.ruta1;
+  double? _latitud;
+  double? _longitud;
+  bool _cargandoUbicacion = false;
 
   @override
   void dispose() {
@@ -30,6 +34,53 @@ class _CrearClientePageState extends State<CrearClientePage> {
     super.dispose();
   }
 
+  Future<void> _capturarUbicacion() async {
+    setState(() => _cargandoUbicacion = true);
+
+    try {
+      final locationService = LocationService();
+      final position = await locationService.obtenerUbicacionActual();
+
+      if (position != null) {
+        setState(() {
+          _latitud = position.latitude;
+          _longitud = position.longitude;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Ubicación capturada: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo obtener la ubicación'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _cargandoUbicacion = false);
+    }
+  }
+
   void _guardarCliente() {
     if (_formKey.currentState!.validate()) {
       final nuevoCliente = ClienteModel(
@@ -39,9 +90,10 @@ class _CrearClientePageState extends State<CrearClientePage> {
         telefono: _telefonoController.text,
         ruta: _rutaSeleccionada!,
         observaciones: _observacionesController.text.isEmpty ? null : _observacionesController.text,
+        latitud: _latitud,
+        longitud: _longitud,
       );
 
-      // Retornar el nuevo cliente a la página anterior
       Navigator.pop(context, nuevoCliente);
     }
   }
@@ -173,6 +225,80 @@ class _CrearClientePageState extends State<CrearClientePage> {
                   prefixIcon: const Icon(Icons.note),
                 ),
                 maxLines: 3,
+              ),
+              const SizedBox(height: 32),
+
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.blue[200]!),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.blue[50],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Ubicación del Negocio (Opcional)',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_latitud != null && _longitud != null)
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          border: Border.all(color: Colors.green),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Ubicación capturada',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Lat: ${_latitud?.toStringAsFixed(6)}, Lon: ${_longitud?.toStringAsFixed(6)}',
+                                    style: const TextStyle(fontSize: 11, color: Colors.green),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ElevatedButton.icon(
+                      onPressed: _cargandoUbicacion ? null : _capturarUbicacion,
+                      icon: _cargandoUbicacion
+                          ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                          : const Icon(Icons.my_location),
+                      label: Text(
+                        _cargandoUbicacion ? 'Obteniendo ubicación...' : 'Capturar Ubicación Actual',
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 32),
 
