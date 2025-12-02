@@ -4,6 +4,7 @@ import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/view/client/crear_cliente_page.dart';
 import 'package:app_bodega/app/view/client/editar_cliente_page.dart';
 import 'package:app_bodega/app/view/client/view_ubicacion_cliente_page.dart';
+import 'package:app_bodega/app/view/client/mapa_clientes_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,7 +12,7 @@ import 'historial_facturas_cliente_page.dart';
 
 // ============= STATE NOTIFIER PARA FILTROS =============
 class FiltrosState {
-  final int rutaIndex; // Cambiado de String? a int para manejar índices
+  final int rutaIndex;
   final String searchQuery;
 
   FiltrosState({this.rutaIndex = 0, this.searchQuery = ''});
@@ -58,17 +59,14 @@ final clientesPorRutaProvider = FutureProvider.family<List<ClienteModel>, String
 
   return clientesAsync.whenData((clientes) {
     if (rutaValue == null) {
-      // Si es "Todas", devolver todos los clientes
       return clientes;
     }
-    // Filtrar por ruta específica
     return clientes.where((cliente) {
       return cliente.ruta?.toString().split('.').last == rutaValue;
     }).toList();
   }).value ?? [];
 });
 
-// Lista de rutas disponibles (incluye "Todas")
 const List<Map<String, String?>> rutasDisponibles = [
   {'label': 'Todas', 'value': null},
   {'label': 'Ruta 1', 'value': 'ruta1'},
@@ -80,11 +78,9 @@ final clientesFiltradosProvider = Provider<List<ClienteModel>>((ref) {
   final filtros = ref.watch(filtrosProvider);
   final rutaSeleccionada = rutasDisponibles[filtros.rutaIndex]['value'];
 
-  // Usar el provider cacheado por ruta
   final clientesPorRuta = ref.watch(clientesPorRutaProvider(rutaSeleccionada));
 
   return clientesPorRuta.whenData((clientes) {
-    // Solo aplicar filtro de búsqueda
     return clientes.where((cliente) {
       final coincideBusqueda =
           filtros.searchQuery.isEmpty ||
@@ -386,6 +382,28 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
     );
   }
 
+  void _abrirMapaClientes() {
+    final clientesAsync = ref.read(clientesProvider);
+
+    clientesAsync.whenData((clientes) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MapaClientesPage(clientes: clientes),
+        ),
+      );
+    }).whenOrNull(
+      error: (err, stack) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar clientes: $err'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final clientesAsync = ref.watch(clientesProvider);
@@ -401,6 +419,14 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
         elevation: 1,
         backgroundColor: Colors.white,
         foregroundColor: Colors.blue[800],
+        actions: [
+          // Botón para ver todos los clientes en el mapa
+          IconButton(
+            icon: const Icon(Icons.map),
+            tooltip: 'Ver todos en mapa',
+            onPressed: _abrirMapaClientes,
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -531,7 +557,6 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                         ),
                       ),
                       data: (clientesPorRuta) {
-                        // Aplicar búsqueda
                         final clientesFiltrados = clientesPorRuta.where((cliente) {
                           final coincideBusqueda =
                               filtros.searchQuery.isEmpty ||

@@ -1,5 +1,6 @@
 import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:app_bodega/app/service/location_service.dart';
+import 'package:app_bodega/app/view/client/selector_ubicacion_mapa.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -25,6 +26,14 @@ class _CrearClientePageState extends State<CrearClientePage> {
   bool _cargandoUbicacion = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Asegurar que empieza sin ubicación
+    _latitud = null;
+    _longitud = null;
+  }
+
+  @override
   void dispose() {
     _nombreController.dispose();
     _nombreNegocioController.dispose();
@@ -35,10 +44,17 @@ class _CrearClientePageState extends State<CrearClientePage> {
   }
 
   Future<void> _capturarUbicacion() async {
-    setState(() => _cargandoUbicacion = true);
+    setState(() {
+      _cargandoUbicacion = true;
+      // Limpiar ubicación anterior antes de obtener nueva
+      _latitud = null;
+      _longitud = null;
+    });
 
     try {
       final locationService = LocationService();
+
+      // Forzar obtención de ubicación fresca
       final position = await locationService.obtenerUbicacionActual();
 
       if (position != null) {
@@ -54,6 +70,7 @@ class _CrearClientePageState extends State<CrearClientePage> {
                 'Ubicación capturada: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',
               ),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
         }
@@ -77,7 +94,9 @@ class _CrearClientePageState extends State<CrearClientePage> {
         );
       }
     } finally {
-      setState(() => _cargandoUbicacion = false);
+      if (mounted) {
+        setState(() => _cargandoUbicacion = false);
+      }
     }
   }
 
@@ -170,7 +189,7 @@ class _CrearClientePageState extends State<CrearClientePage> {
               ),
               const SizedBox(height: 16),
 
-              // Teléfono (NUEVO)
+              // Teléfono
               TextFormField(
                 controller: _telefonoController,
                 keyboardType: TextInputType.phone,
@@ -279,6 +298,18 @@ class _CrearClientePageState extends State<CrearClientePage> {
                                 ],
                               ),
                             ),
+                            // Botón para limpiar ubicación
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18, color: Colors.red),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () {
+                                setState(() {
+                                  _latitud = null;
+                                  _longitud = null;
+                                });
+                              },
+                            ),
                           ],
                         ),
                       ),
@@ -294,8 +325,40 @@ class _CrearClientePageState extends State<CrearClientePage> {
                       )
                           : const Icon(Icons.my_location),
                       label: Text(
-                        _cargandoUbicacion ? 'Obteniendo ubicación...' : 'Capturar Ubicación Actual',
+                        _cargandoUbicacion
+                            ? 'Obteniendo ubicación...'
+                            : (_latitud != null ? 'Recapturar Ubicación' : 'Capturar Ubicación Actual'),
                       ),
+                    ),
+                    // Agregar este botón junto al botón "Capturar Ubicación Actual"
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final resultado = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SelectorUbicacionMapa(
+                              latitudInicial: _latitud,
+                              longitudInicial: _longitud,
+                            ),
+                          ),
+                        );
+
+                        if (resultado != null) {
+                          setState(() {
+                            _latitud = resultado['latitud'];
+                            _longitud = resultado['longitud'];
+                          });
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Ubicación seleccionada desde el mapa'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.map),
+                      label: const Text('Seleccionar en Mapa'),
                     ),
                   ],
                 ),
