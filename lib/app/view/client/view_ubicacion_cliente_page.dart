@@ -3,6 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:app_bodega/app/service/location_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import '../../widgets/cliente_pulse_market.dart';
 import '../../widgets/pulse_marker.dart';
@@ -24,6 +26,11 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
   LatLng? _miUbicacion;
   bool _cargandoUbicacion = false;
   bool _mostrarMiUbicacion = true;
+  bool _mostrarRuta = true;
+  List<LatLng> _puntosRuta = []; // Puntos de la ruta real
+  bool _cargandoRuta = false;
+  double? _distanciaRuta; // Distancia de la ruta real en metros
+  double? _duracionRuta; // Duración estimada en segundos
 
   @override
   void initState() {
@@ -41,9 +48,71 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
       setState(() {
         _miUbicacion = LatLng(position.latitude, position.longitude);
       });
+
+      // Cargar ruta automáticamente cuando se obtiene la ubicación
+      if (_mostrarRuta) {
+        _cargarRutaReal();
+      }
     }
 
     setState(() => _cargandoUbicacion = false);
+  }
+
+  // Nueva función para obtener la ruta real usando OSRM
+  Future<void> _cargarRutaReal() async {
+    if (_miUbicacion == null || widget.cliente.latitud == null) return;
+
+    setState(() => _cargandoRuta = true);
+
+    try {
+      final start = _miUbicacion!;
+      final end = LatLng(widget.cliente.latitud!, widget.cliente.longitud!);
+
+      // Llamar al servicio OSRM (Open Source Routing Machine)
+      final url = 'https://router.project-osrm.org/route/v1/driving/'
+          '${start.longitude},${start.latitude};'
+          '${end.longitude},${end.latitude}'
+          '?overview=full&geometries=geojson';
+
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['code'] == 'Ok' && data['routes'].isNotEmpty) {
+          final route = data['routes'][0];
+          final geometry = route['geometry']['coordinates'] as List;
+
+          // Convertir coordenadas a LatLng
+          final puntos = geometry.map((coord) {
+            return LatLng(coord[1] as double, coord[0] as double);
+          }).toList();
+
+          if (mounted) {
+            setState(() {
+              _puntosRuta = puntos;
+              _distanciaRuta = route['distance'] as double?; // en metros
+              _duracionRuta = route['duration'] as double?; // en segundos
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print('Error cargando ruta: $e');
+      // En caso de error, mostrar línea recta como fallback
+      if (mounted) {
+        setState(() {
+          _puntosRuta = [
+            _miUbicacion!,
+            LatLng(widget.cliente.latitud!, widget.cliente.longitud!)
+          ];
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _cargandoRuta = false);
+      }
+    }
   }
 
   double? _calcularDistancia() {
@@ -62,12 +131,12 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     final marcadores = <Marker>[];
     final ubicacionCliente = LatLng(widget.cliente.latitud!, widget.cliente.longitud!);
 
-    // Marcador del cliente - AUMENTADO EL HEIGHT
+    // Marcador del cliente
     marcadores.add(
       Marker(
         point: ubicacionCliente,
         width: 100,
-        height: 120, // Aumentado de 100 a 120
+        height: 120,
         alignment: Alignment.center,
         child: ClientePulseMarker(
           nombre: widget.cliente.nombreNegocio,
@@ -91,6 +160,28 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     }
 
     return marcadores;
+  }
+
+  // Nueva función para construir la línea de ruta REAL
+  List<Polyline> _construirRuta() {
+    if (!_mostrarRuta || !_mostrarMiUbicacion) {
+      return [];
+    }
+
+    // Si todavía no hay ruta cargada, no mostrar nada
+    if (_puntosRuta.isEmpty) {
+      return [];
+    }
+
+    return [
+      Polyline(
+        points: _puntosRuta,
+        strokeWidth: 5.0,
+        color: Colors.blue.withOpacity(0.8),
+        borderStrokeWidth: 2.0,
+        borderColor: Colors.white,
+      ),
+    ];
   }
 
   void _centrarEnCliente() {
@@ -177,17 +268,45 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
         title: const Text('Ubicación del Negocio'),
         centerTitle: true,
         actions: [
+          // Toggle para mostrar/ocultar ruta
+          if (_miUbicacion != null && _mostrarMiUbicacion)
+            IconButton(
+              icon: _cargandoRuta
+                  ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+                  : Icon(
+                _mostrarRuta ? Icons.route : Icons.route_outlined,
+                color: _mostrarRuta ? Colors.black45 : Colors.grey,
+              ),
+              tooltip: _mostrarRuta ? 'Ocultar ruta' : 'Mostrar ruta',
+              onPressed: _cargandoRuta
+                  ? null
+                  : () {
+                setState(() {
+                  _mostrarRuta = !_mostrarRuta;
+                  if (_mostrarRuta && _puntosRuta.isEmpty) {
+                    _cargarRutaReal();
+                  }
+                });
+              },
+            ),
           // Toggle para mostrar/ocultar mi ubicación
           if (_miUbicacion != null)
             IconButton(
               icon: Icon(
                 _mostrarMiUbicacion ? Icons.visibility : Icons.visibility_off,
-                color: _mostrarMiUbicacion ? Colors.green : Colors.grey,
+                color: _mostrarMiUbicacion ? Colors.black45 : Colors.grey,
               ),
               tooltip: _mostrarMiUbicacion ? 'Ocultar mi ubicación' : 'Mostrar mi ubicación',
               onPressed: () {
                 setState(() {
                   _mostrarMiUbicacion = !_mostrarMiUbicacion;
+                  if (!_mostrarMiUbicacion) {
+                    _mostrarRuta = false; // Ocultar ruta si se oculta ubicación
+                  }
                 });
               },
             ),
@@ -215,6 +334,10 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                 userAgentPackageName: 'com.bodega.app_bodega',
                 maxZoom: 19,
               ),
+              // Capa de polilínea (ruta) - debe ir ANTES de los marcadores
+              PolylineLayer(
+                polylines: _construirRuta(),
+              ),
               MarkerLayer(
                 markers: _construirMarcadores(),
               ),
@@ -241,7 +364,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                   FloatingActionButton(
                     heroTag: 'verAmbos',
                     mini: true,
-                    backgroundColor: Colors.purple,
+                    backgroundColor: Colors.white,
                     tooltip: 'Ver ambos en mapa',
                     onPressed: _verAmbosEnMapa,
                     child: const Icon(Icons.fit_screen, size: 20),
@@ -254,7 +377,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                 FloatingActionButton(
                   heroTag: 'miUbicacion',
                   mini: true,
-                  backgroundColor: _cargandoUbicacion ? Colors.grey : Colors.green,
+                  backgroundColor: _cargandoUbicacion ? Colors.grey : Colors.white,
                   tooltip: 'Mi ubicación',
                   onPressed: _cargandoUbicacion ? null : _centrarEnMiUbicacion,
                   child: _cargandoUbicacion
@@ -274,7 +397,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                 FloatingActionButton(
                   heroTag: 'centrarCliente',
                   mini: true,
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.white,
                   tooltip: 'Centrar en cliente',
                   onPressed: _centrarEnCliente,
                   child: const Icon(Icons.store, size: 20),
@@ -347,29 +470,71 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                     child: Text(
                       widget.cliente.direccion,
                       style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[700],
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w600,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
 
               // Mostrar distancia si está disponible
               if (distancia != null && _mostrarMiUbicacion) ...[
                 Row(
+                  // children: [
+                  //   Icon(Icons.straighten, size: 16, color: Colors.grey[600]),
+                  //   const SizedBox(width: 8),
+                  //   Expanded(
+                  //     child: Text(
+                  //       'Distancia en línea recta: ${distancia < 1000 ? "${distancia.toStringAsFixed(0)} m" : "${(distancia / 1000).toStringAsFixed(2)} km"}',
+                  //       style: TextStyle(
+                  //         fontSize: 13,
+                  //         color: Colors.grey[700],
+                  //         fontWeight: FontWeight.w500,
+                  //       ),
+                  //     ),
+                  //   ),
+                  // ],
+                ),
+                const SizedBox(height: 4),
+              ],
+
+              // Muestra distancia de la ruta real
+              if (_distanciaRuta != null && _mostrarRuta && _mostrarMiUbicacion) ...[
+                Row(
                   children: [
-                    Icon(Icons.social_distance, size: 16, color: Colors.green[600]),
+                    Icon(Icons.directions_car, size: 16, color: Colors.grey[600]),
                     const SizedBox(width: 8),
-                    Text(
-                      'Distancia: ${distancia < 1000 ? "${distancia.toStringAsFixed(0)} m" : "${(distancia / 1000).toStringAsFixed(2)} km"}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.green[700],
-                        fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: Text(
+                        'Distancia por carretera: ${_distanciaRuta! < 1000 ? "${_distanciaRuta!.toStringAsFixed(0)} m" : "${(_distanciaRuta! / 1000).toStringAsFixed(2)} km"}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+              ],
+
+              // Mostrar tiempo estimado
+              if (_duracionRuta != null && _mostrarRuta && _mostrarMiUbicacion) ...[
+                Row(
+                  children: [
+                    Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Tiempo estimado: ${(_duracionRuta! / 60).toStringAsFixed(0)} min',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -385,8 +550,8 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                 ),
               ),
 
-              // Indicador de carga de ubicación
-              if (_cargandoUbicacion) ...[
+              // Indicador de carga de ubicación o ruta
+              if (_cargandoUbicacion || _cargandoRuta) ...[
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -400,7 +565,9 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Obteniendo tu ubicación...',
+                      _cargandoUbicacion
+                          ? 'Obteniendo tu ubicación...'
+                          : 'Calculando ruta...',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],

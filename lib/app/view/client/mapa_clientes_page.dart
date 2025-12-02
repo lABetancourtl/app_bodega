@@ -379,7 +379,7 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: const LatLng(4.5339, -75.6811), // Armenia, Colombia
+              initialCenter: const LatLng(4.5339, -75.6811),
               initialZoom: 13.0,
               minZoom: 3.0,
               maxZoom: 19.0,
@@ -511,9 +511,10 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
                 // Mi ubicación
                 FloatingActionButton(
                   heroTag: 'miUbicacion',
+                  mini: true,
                   onPressed: _cargandoUbicacion ? null : _cargarMiUbicacion,
                   tooltip: 'Mi ubicación actual',
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.white,
                   child: _cargandoUbicacion
                       ? const SizedBox(
                     width: 24,

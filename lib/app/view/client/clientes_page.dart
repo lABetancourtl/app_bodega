@@ -167,7 +167,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
             ),
             if (cliente.latitud != null && cliente.longitud != null)
               ListTile(
-                leading: const Icon(Icons.map, color: Colors.blue),
+                leading: Icon(Icons.map_outlined),
                 title: const Text('Ver en mapa'),
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -422,7 +422,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
         actions: [
           // Botón para ver todos los clientes en el mapa
           IconButton(
-            icon: const Icon(Icons.map),
+            icon: const Icon(Icons.map_outlined),
             tooltip: 'Ver todos en mapa',
             onPressed: _abrirMapaClientes,
           ),
