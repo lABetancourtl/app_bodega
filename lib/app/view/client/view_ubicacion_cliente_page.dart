@@ -367,7 +367,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                     backgroundColor: Colors.white,
                     tooltip: 'Ver ambos en mapa',
                     onPressed: _verAmbosEnMapa,
-                    child: const Icon(Icons.fit_screen, size: 20),
+                    child: const Icon(Icons.fit_screen, size: 20, color: Colors.black,),
                   ),
 
                 if (_miUbicacion != null && _mostrarMiUbicacion)
@@ -389,7 +389,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                       strokeWidth: 2,
                     ),
                   )
-                      : const Icon(Icons.my_location, size: 20),
+                      : const Icon(Icons.my_location, size: 20, color: Colors.black),
                 ),
                 const SizedBox(height: 8),
 
@@ -400,7 +400,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                   backgroundColor: Colors.white,
                   tooltip: 'Centrar en cliente',
                   onPressed: _centrarEnCliente,
-                  child: const Icon(Icons.store, size: 20),
+                  child: const Icon(Icons.store, size: 20, color: Colors.black),
                 ),
                 const SizedBox(height: 8),
 
@@ -415,7 +415,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                       _mapController.camera.zoom + 1,
                     );
                   },
-                  child: const Icon(Icons.add, color: Colors.black87, size: 20),
+                  child: const Icon(Icons.add, color: Colors.black, ),
                 ),
                 const SizedBox(height: 8),
 
@@ -430,7 +430,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                       _mapController.camera.zoom - 1,
                     );
                   },
-                  child: const Icon(Icons.remove, color: Colors.black87, size: 20),
+                  child: const Icon(Icons.remove, color: Colors.black),
                 ),
               ],
             ),

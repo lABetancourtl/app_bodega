@@ -524,7 +524,7 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
                       strokeWidth: 2,
                     ),
                   )
-                      : const Icon(Icons.my_location),
+                      : const Icon(Icons.my_location, color: Colors.black,),
                 ),
                 const SizedBox(height: 12),
 
@@ -538,7 +538,7 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
                     );
                   },
                   backgroundColor: Colors.white,
-                  child: const Icon(Icons.add, color: Colors.black87),
+                  child: const Icon(Icons.add, color: Colors.black),
                 ),
                 const SizedBox(height: 8),
 
@@ -552,7 +552,7 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
                     );
                   },
                   backgroundColor: Colors.white,
-                  child: const Icon(Icons.remove, color: Colors.black87),
+                  child: const Icon(Icons.remove, color: Colors.black),
                 ),
               ],
             ),

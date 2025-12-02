@@ -459,17 +459,15 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
               children: [
                 SizedBox(
                   height: 48,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: rutasDisponibles.length,
-                    itemBuilder: (context, index) {
-                      final ruta = rutasDisponibles[index];
-                      final isSelected = filtros.rutaIndex == index;
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Wrap(
+                      spacing: 20, // <-- espacio horizontal entre chips
+                      children: List.generate(rutasDisponibles.length, (index) {
+                        final ruta = rutasDisponibles[index];
+                        final isSelected = filtros.rutaIndex == index;
 
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: FilterChip(
+                        return FilterChip(
                           label: Text(ruta['label']!),
                           selected: isSelected,
                           onSelected: (selected) {
@@ -485,11 +483,12 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                           labelStyle: TextStyle(
                             color: isSelected ? Colors.white : Colors.black,
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      }),
+                    ),
                   ),
-                ),
+                )
+
               ],
             ),
           ),
