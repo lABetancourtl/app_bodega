@@ -49,24 +49,79 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       return;
     }
 
-    final nuevoItem = await Navigator.push(
+    final resultado = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const AgregarProductoFacturaPage(),
       ),
     );
 
-    if (nuevoItem != null) {
+    // El resultado ahora puede ser una lista de productos del carrito
+    if (resultado != null) {
       setState(() {
-        items.add(nuevoItem);
+        if (resultado is List<ItemFacturaModel>) {
+          // Si es una lista (del carrito), agregar todos
+          items.addAll(resultado);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${resultado.length} ${resultado.length == 1 ? "producto agregado" : "productos agregados"}'),
+              duration: const Duration(seconds: 2),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else if (resultado is ItemFacturaModel) {
+          // Si es un solo item (por si acaso)
+          items.add(resultado);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Producto agregado'),
+              duration: Duration(seconds: 1),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       });
     }
   }
 
   void _eliminarProducto(int index) {
-    setState(() {
-      items.removeAt(index);
-    });
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar producto'),
+        content: Text('¿Deseas eliminar "${items[index].nombreProducto}" de la factura?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                items.removeAt(index);
+              });
+              Navigator.pop(context);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Producto eliminado'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _guardarFactura() async {
@@ -106,7 +161,10 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Factura guardada para ${clienteSeleccionado!.nombre}')),
+          SnackBar(
+            content: Text('Factura guardada para ${clienteSeleccionado!.nombre}'),
+            backgroundColor: Colors.green,
+          ),
         );
         Future.delayed(const Duration(seconds: 1), () {
           Navigator.pop(context, true);
@@ -114,7 +172,10 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al guardar: $e')),
+        SnackBar(
+          content: Text('Error al guardar: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -189,11 +250,11 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(
-                            children:  [
+                            children: [
                               Icon(Icons.add, size: 30, color: Colors.grey[700]),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               Text(
-                                "Agregar producto",
+                                "Agregar productos",
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -211,7 +272,11 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20),
-                          child: Text('No hay productos agregados'),
+                          child: Text(
+                            'No hay productos agregados\nPresiona "Agregar productos" para empezar',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         ),
                       ),
 
@@ -254,7 +319,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                                 Text('Cantidad: ${item.cantidadTotal}'),
                               Text(
                                 'Subtotal: \$${_formatearPrecio(item.subtotal)}',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 12,
                                   color: Colors.green,
                                   fontWeight: FontWeight.bold,
@@ -263,7 +328,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                             ],
                           ),
                           trailing: IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
+                            icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () => _eliminarProducto(index),
                           ),
                           onTap: () => _editarProducto(index),
@@ -294,17 +359,30 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Total: ',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${items.length} ${items.length == 1 ? "producto" : "productos"}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const Text(
+                          'Total: ',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                     Text(
                       '\$${_formatearPrecio(total)}',
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.green,
                       ),
@@ -314,18 +392,6 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
               )
             ],
           ),
-
-          // Botón flotante posicionado arriba del total
-          // Positioned(
-          //   right: 16,
-          //   bottom: 74 +
-          //       MediaQuery.of(context).viewInsets.bottom +
-          //       MediaQuery.of(context).padding.bottom,
-          //   child: FloatingActionButton(
-          //     onPressed: _agregarProducto,
-          //     child: const Icon(Icons.add),
-          //   ),
-          // ),
         ],
       ),
     );
@@ -355,6 +421,13 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       setState(() {
         items[index] = itemEditado;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Producto actualizado'),
+          duration: Duration(seconds: 1),
+        ),
+      );
     }
   }
 
