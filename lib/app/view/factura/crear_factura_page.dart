@@ -60,25 +60,48 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
     if (resultado != null) {
       setState(() {
         if (resultado is List<ItemFacturaModel>) {
-          // Si es una lista (del carrito), agregar todos
-          items.addAll(resultado);
+          // Procesar cada item del carrito
+          for (var nuevoItem in resultado) {
+            // Buscar si el producto ya existe en la factura
+            final indexExistente = items.indexWhere(
+                  (item) => item.productoId == nuevoItem.productoId,
+            );
+
+            if (indexExistente != -1) {
+              // Actualizar el producto existente
+              items[indexExistente] = nuevoItem;
+            } else {
+              // Agregar nuevo producto
+              items.add(nuevoItem);
+            }
+          }
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${resultado.length} ${resultado.length == 1 ? "producto agregado" : "productos agregados"}'),
-              duration: const Duration(seconds: 2),
-              backgroundColor: Colors.green,
+              content: Text('${resultado.length} ${resultado.length == 1 ? "producto procesado" : "productos procesados"}'),
+              duration: const Duration(milliseconds: 1500),
+              backgroundColor: Colors.black45,
             ),
           );
         } else if (resultado is ItemFacturaModel) {
           // Si es un solo item (por si acaso)
-          items.add(resultado);
+          final indexExistente = items.indexWhere(
+                (item) => item.productoId == resultado.productoId,
+          );
+
+          if (indexExistente != -1) {
+            // Actualizar el producto existente
+            items[indexExistente] = resultado;
+          } else {
+            // Agregar nuevo producto
+            items.add(resultado);
+          }
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Producto agregado'),
-              duration: Duration(seconds: 1),
-              backgroundColor: Colors.green,
+              duration: Duration(milliseconds: 1500),
+              backgroundColor: Colors.black45,
             ),
           );
         }
@@ -97,7 +120,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          TextButton(
             onPressed: () {
               setState(() {
                 items.removeAt(index);
@@ -111,12 +134,9 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                 ),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
             child: const Text(
               'Eliminar',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -163,7 +183,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Factura guardada para ${clienteSeleccionado!.nombre}'),
-            backgroundColor: Colors.green,
+            backgroundColor: Colors.black45,
           ),
         );
         Future.delayed(const Duration(seconds: 1), () {

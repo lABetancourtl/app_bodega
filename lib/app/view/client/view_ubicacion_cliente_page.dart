@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:app_bodega/app/service/location_service.dart';
@@ -27,10 +30,13 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
   bool _cargandoUbicacion = false;
   bool _mostrarMiUbicacion = true;
   bool _mostrarRuta = true;
-  List<LatLng> _puntosRuta = []; // Puntos de la ruta real
+  List<LatLng> _puntosRuta = [];
   bool _cargandoRuta = false;
-  double? _distanciaRuta; // Distancia de la ruta real en metros
-  double? _duracionRuta; // Duración estimada en segundos
+  double? _distanciaRuta;
+  double? _duracionRuta;
+
+  StreamSubscription<Position>? _positionStreamSubscription;
+  bool _seguirUbicacion = false;
 
   @override
   void initState() {
@@ -91,8 +97,8 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
           if (mounted) {
             setState(() {
               _puntosRuta = puntos;
-              _distanciaRuta = route['distance'] as double?; // en metros
-              _duracionRuta = route['duration'] as double?; // en segundos
+              _distanciaRuta = route['distance'] as double?;
+              _duracionRuta = route['duration'] as double?;
             });
           }
         }
@@ -131,12 +137,12 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     final marcadores = <Marker>[];
     final ubicacionCliente = LatLng(widget.cliente.latitud!, widget.cliente.longitud!);
 
-    // Marcador del cliente
+    // Marcador del cliente - AHORA CON PRECISIÓN PERFECTA
     marcadores.add(
       Marker(
         point: ubicacionCliente,
-        width: 100,
-        height: 120,
+        width: 80,
+        height: 100, // Ajustado para incluir el nombre debajo
         alignment: Alignment.center,
         child: ClientePulseMarker(
           nombre: widget.cliente.nombreNegocio,
@@ -144,7 +150,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
         ),
       ),
     );
-
 
     // Marcador de mi ubicación (si está disponible y activado)
     if (_miUbicacion != null && _mostrarMiUbicacion) {
@@ -268,6 +273,23 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
         title: const Text('Ubicación del Negocio'),
         centerTitle: true,
         actions: [
+          if (_miUbicacion != null)
+            IconButton(
+              icon: Icon(
+                Icons.my_location,
+                color: _seguirUbicacion ? Colors.blue : Colors.black45,
+              ),
+              tooltip: _seguirUbicacion ? 'Desactivar seguimiento' : 'Seguir mi ubicación',
+              onPressed: () {
+                setState(() {
+                  _seguirUbicacion = !_seguirUbicacion;
+                  // if (_seguirUbicacion && _miUbicacion != null) {
+                  //   _mapController.move(_miUbicacion!, _mapController.camera.zoom);
+                  // }
+                });
+              },
+            ),
+
           // Toggle para mostrar/ocultar ruta
           if (_miUbicacion != null && _mostrarMiUbicacion)
             IconButton(
@@ -334,7 +356,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                 userAgentPackageName: 'com.bodega.app_bodega',
                 maxZoom: 19,
               ),
-              // Capa de polilínea (ruta) - debe ir ANTES de los marcadores
               PolylineLayer(
                 polylines: _construirRuta(),
               ),
@@ -352,7 +373,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
             ],
           ),
 
-          // Panel de controles flotante
           Positioned(
             bottom: 200,
             right: 16,

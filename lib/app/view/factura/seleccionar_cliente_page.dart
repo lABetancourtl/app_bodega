@@ -37,6 +37,7 @@ class _SeleccionarClientePageState extends State<SeleccionarClientePage> {
         // Filtrar por búsqueda
         final coincideBusqueda = query.isEmpty ||
             cliente.nombre.toLowerCase().contains(query.toLowerCase()) ||
+            cliente.direccion.toLowerCase().contains(query.toLowerCase()) ||
             cliente.nombreNegocio.toLowerCase().contains(query.toLowerCase());
 
         // Filtrar por ruta
@@ -176,10 +177,37 @@ class _SeleccionarClientePageState extends State<SeleccionarClientePage> {
                   child: ListTile(
                     leading: const Icon(Icons.store, color: Colors.blue),
                     title: Text(
-                      cliente.nombre,
+                      cliente.nombreNegocio,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text(cliente.nombreNegocio),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          cliente.nombre ?? 'Sin nombre',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          cliente.direccion ?? 'Sin direccion',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          cliente.ruta?.toString().split('.').last.toUpperCase() ?? 'Sin ruta',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
                     onTap: () {
                       Navigator.pop(context, cliente);
                     },

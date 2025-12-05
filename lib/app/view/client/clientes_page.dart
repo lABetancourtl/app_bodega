@@ -200,9 +200,9 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(
-                            'Cliente ${clienteActualizado.nombre} actualizado',
-                          ),
+                          content: Text('Cliente ${clienteActualizado.nombre} actualizado',),
+                          backgroundColor: Colors.black54,
+                          duration: Duration(milliseconds: 1300),
                         ),
                       );
                     }
@@ -210,7 +210,13 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                     if (context.mounted) {
                       ScaffoldMessenger.of(
                         context,
-                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                      ).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e',),
+                            backgroundColor: Colors.black54,
+                            duration: Duration(milliseconds: 1300),
+                          )
+                      );
                     }
                   }
                 }
@@ -265,7 +271,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          TextButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
 
@@ -277,7 +283,8 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Cliente ${cliente.nombre} eliminado'),
-                      backgroundColor: Colors.black45,
+                      backgroundColor: Colors.black54,
+                      duration: Duration(milliseconds: 1300),
                     ),
                   );
                 }
@@ -286,17 +293,14 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Error al eliminar: $e'),
-                      backgroundColor: Colors.red,
+                      backgroundColor: Colors.black54,
+                      duration: Duration(milliseconds: 1300),
                     ),
                   );
                 }
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Eliminar'),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -397,7 +401,8 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al cargar clientes: $err'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.black54,
+            duration: Duration(milliseconds: 1300),
           ),
         );
       },
@@ -562,6 +567,9 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                                   cliente.nombre.toLowerCase().contains(
                                     filtros.searchQuery.toLowerCase(),
                                   ) ||
+                                  cliente.direccion.toLowerCase().contains(
+                                    filtros.searchQuery.toLowerCase(),
+                                  ) ||
                                   (cliente.nombreNegocio?.toLowerCase().contains(
                                     filtros.searchQuery.toLowerCase(),
                                   ) ??
@@ -595,6 +603,8 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Cliente ${nuevoCliente.nombre} agregado'),
+                    backgroundColor: Colors.black54,
+                    duration: Duration(milliseconds: 1300),
                   ),
                 );
               }
@@ -602,7 +612,13 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
               if (context.mounted) {
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                ).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.black54,
+                      duration: Duration(milliseconds: 1300),
+                    )
+                );
               }
             }
           }

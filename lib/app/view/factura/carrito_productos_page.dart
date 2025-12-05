@@ -136,6 +136,46 @@ class CarritoProductosPage extends ConsumerWidget {
                             ),
                             onChanged: (_) => setState(() {}),
                           ),
+                          const SizedBox(height: 16),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              '${int.tryParse(cantidadTotalController.text) ?? 0} unidades',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'TOTAL:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  '\$${_formatearPrecio((int.tryParse(cantidadTotalController.text) ?? 0) * producto.precio)}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                         if (producto.sabores.length > 1) ...[
                           const Text(
@@ -315,7 +355,7 @@ class CarritoProductosPage extends ConsumerWidget {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          TextButton(
             onPressed: () {
               final carritoProvider = ref.read(carritoTemporalProvider.notifier);
               final carritoActual = ref.read(carritoTemporalProvider);
@@ -332,12 +372,9 @@ class CarritoProductosPage extends ConsumerWidget {
                 ),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
             child: const Text(
               'Eliminar',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -385,7 +422,7 @@ class CarritoProductosPage extends ConsumerWidget {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          TextButton(
             onPressed: () {
               ref.read(carritoTemporalProvider.notifier).state = [];
               Navigator.pop(dialogContext);
@@ -397,12 +434,9 @@ class CarritoProductosPage extends ConsumerWidget {
                 ),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
             child: const Text(
               'Vaciar',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -540,9 +574,35 @@ class CarritoProductosPage extends ConsumerWidget {
                         leading: FutureBuilder<String?>(
                           future: _obtenerImagenProducto(item.productoId),
                           builder: (context, snapshot) {
+                            Widget imagenWidget;
+
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              // Mostrar indicador de carga mientras se obtiene la imagen
+                              imagenWidget = Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            } else {
+                              // Mostrar la imagen o el ícono por defecto
+                              imagenWidget = _construirImagenProducto(snapshot.data);
+                            }
+
                             return Stack(
                               children: [
-                                _construirImagenProducto(snapshot.data),
+                                imagenWidget,
                                 Positioned(
                                   top: 0,
                                   right: 0,
@@ -711,21 +771,37 @@ class CarritoProductosPage extends ConsumerWidget {
                           icon: const Icon(Icons.arrow_back),
                           label: const Text('Seguir Comprando'),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            // padding: const EdgeInsets.symmetric(vertical: 10),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: ElevatedButton(
                           onPressed: () => _finalizarSeleccion(context, ref),
-                          icon: const Icon(Icons.check),
-                          label: const Text('Finalizar'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
+                            backgroundColor: Colors.blue,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ), child: Text(
+                              'Finalizar',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white
+                              ),
                         ),
+                        ),
+
+                        // ElevatedButton(
+                        //   onPressed: _guardarCategoria,
+                        //   style: ElevatedButton.styleFrom(
+                        //     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        //     backgroundColor: Colors.blue,
+                        //   ),
+                        //   child: const Text(
+                        //     'Guardar Categoría',
+                        //     style: TextStyle(fontSize: 16, color: Colors.white),
+                        //   ),
+                        // ),
                       ),
                     ],
                   ),

@@ -38,7 +38,12 @@ final carritoTemporalProvider = StateProvider<List<ItemFacturaModel>>((ref) => [
 
 // ============= PÁGINA =============
 class AgregarProductoFacturaPage extends ConsumerStatefulWidget {
-  const AgregarProductoFacturaPage({super.key});
+  final List<ItemFacturaModel>? itemsIniciales;
+
+  const AgregarProductoFacturaPage({
+    super.key,
+    this.itemsIniciales,
+  });
 
   @override
   ConsumerState<AgregarProductoFacturaPage> createState() => _AgregarProductoFacturaPageState();
@@ -51,9 +56,14 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
-    // Limpiar el carrito al iniciar
+    // Precargar el carrito con items iniciales o limpiarlo
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(carritoTemporalProvider.notifier).state = [];
+      if (widget.itemsIniciales != null && widget.itemsIniciales!.isNotEmpty) {
+        ref.read(carritoTemporalProvider.notifier).state =
+        List<ItemFacturaModel>.from(widget.itemsIniciales!);
+      } else {
+        ref.read(carritoTemporalProvider.notifier).state = [];
+      }
     });
   }
 
@@ -241,42 +251,57 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
 
           return Column(
             children: [
+              // Dropdown de categorías
               Container(
-                padding: const EdgeInsets.only(top: 8, bottom: 4),
-                child: SizedBox(
-                  height: 48,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: categorias.length,
-                    itemBuilder: (context, index) {
-                      final categoria = categorias[index];
-                      final isSelected = categoriaIndex == index;
-
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: FilterChip(
-                          label: Text(categoria.nombre),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            ref.read(categoriaIndexProvider.notifier).state = index;
-                            _pageController.animateToPage(
-                              index,
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          },
-                          backgroundColor: Colors.grey[200],
-                          selectedColor: Colors.blue,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black,
-                          ),
+                width: double.infinity,
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.blue, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: categoriaIndex,
+                    isExpanded: true,
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.blue),
+                    menuMaxHeight: 400,
+                    alignment: AlignmentDirectional.bottomStart,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    items: categorias.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final categoria = entry.value;
+                      return DropdownMenuItem<int>(
+                        value: index,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.category, color: Colors.blue, size: 20),
+                            const SizedBox(width: 12),
+                            Text(categoria.nombre),
+                          ],
                         ),
                       );
+                    }).toList(),
+                    onChanged: (int? nuevoIndex) {
+                      if (nuevoIndex != null) {
+                        ref.read(categoriaIndexProvider.notifier).state = nuevoIndex;
+                        _pageController.animateToPage(
+                          nuevoIndex,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
                     },
                   ),
                 ),
               ),
+
+              // PageView con las listas de productos
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
@@ -531,7 +556,7 @@ class _ProductoCard extends StatelessWidget {
                             child: const Text(
                               'Editando',
                               style: TextStyle(
-                                color: Colors.black54,
+                                color: Colors.black45,
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -560,6 +585,46 @@ class _ProductoCard extends StatelessWidget {
                               prefixIcon: const Icon(Icons.inventory),
                             ),
                             onChanged: (_) => setState(() {}),
+                          ),
+                          const SizedBox(height: 16),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              '${int.tryParse(cantidadTotalController.text) ?? 0} unidades',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'TOTAL:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  '\$${_formatearPrecio((int.tryParse(cantidadTotalController.text) ?? 0) * producto.precio)}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                         if (producto.sabores.length > 1) ...[
@@ -829,7 +894,7 @@ class _ProductoCard extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      'Subtotal: \$${_formatearPrecio(itemEnCarrito!.subtotal)}',
+                      'Subtotal: \${_formatearPrecio(itemEnCarrito!.subtotal)}',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.green.shade800,

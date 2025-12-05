@@ -109,8 +109,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(
-        Icons.local_drink,
-        color: Colors.blue[600],
+        Icons.image_rounded,
         size: 32,
       ),
     );

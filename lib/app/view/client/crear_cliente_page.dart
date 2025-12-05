@@ -46,7 +46,6 @@ class _CrearClientePageState extends State<CrearClientePage> {
   Future<void> _capturarUbicacion() async {
     setState(() {
       _cargandoUbicacion = true;
-      // Limpiar ubicación anterior antes de obtener nueva
       _latitud = null;
       _longitud = null;
     });
@@ -54,7 +53,6 @@ class _CrearClientePageState extends State<CrearClientePage> {
     try {
       final locationService = LocationService();
 
-      // Forzar obtención de ubicación fresca
       final position = await locationService.obtenerUbicacionActual();
 
       if (position != null) {
@@ -98,6 +96,48 @@ class _CrearClientePageState extends State<CrearClientePage> {
         setState(() => _cargandoUbicacion = false);
       }
     }
+  }
+
+  Future<void> _seleccionarEnMapa() async {
+    final resultado = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SelectorUbicacionMapa(
+          latitudInicial: _latitud,
+          longitudInicial: _longitud,
+        ),
+      ),
+    );
+
+    if (resultado != null && mounted) {
+      setState(() {
+        _latitud = resultado['latitud'];
+        _longitud = resultado['longitud'];
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ubicación seleccionada desde el mapa'),
+          backgroundColor: Colors.black54,
+          duration: Duration(milliseconds: 1300),
+        ),
+      );
+    }
+  }
+
+  void _eliminarUbicacion() {
+    setState(() {
+      _latitud = null;
+      _longitud = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Ubicación eliminada'),
+        backgroundColor: Colors.black54,
+        duration: Duration(milliseconds: 1300),
+      ),
+    );
   }
 
   void _guardarCliente() {
@@ -236,8 +276,7 @@ class _CrearClientePageState extends State<CrearClientePage> {
               TextFormField(
                 controller: _observacionesController,
                 decoration: InputDecoration(
-                  labelText: 'Observaciones (Opcional)',
-                  hintText: 'Ej: No compra los martes',
+                  labelText: 'Observaciones ',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -250,115 +289,160 @@ class _CrearClientePageState extends State<CrearClientePage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.blue[200]!),
+                  border: Border.all(
+                      color: Colors.black54
+                  ),
                   borderRadius: BorderRadius.circular(8),
-                  color: Colors.blue[50],
+                  // color: Colors.blue[50],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Ubicación del Negocio (Opcional)',
+                      'Ubicación del Negocio',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                        color: Colors.black54,
                       ),
                     ),
                     const SizedBox(height: 12),
+
+                    // Mostrar ubicación capturada si existe
                     if (_latitud != null && _longitud != null)
                       Container(
                         padding: const EdgeInsets.all(8),
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
-                          color: Colors.green[50],
-                          border: Border.all(color: Colors.green),
+                          color: Colors.blue[50],
+                          border: Border.all(color: Colors.blue),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                            const Icon(Icons.check_circle, color: Colors.blue, size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Ubicación capturada',
+                                    'Ubicación guardada',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.green,
+                                      color: Colors.blue,
                                     ),
                                   ),
                                   Text(
                                     'Lat: ${_latitud?.toStringAsFixed(6)}, Lon: ${_longitud?.toStringAsFixed(6)}',
-                                    style: const TextStyle(fontSize: 11, color: Colors.green),
+                                    style: const TextStyle(fontSize: 11, color: Colors.blue),
                                   ),
                                 ],
                               ),
                             ),
-                            // Botón para limpiar ubicación
                             IconButton(
-                              icon: const Icon(Icons.close, size: 18, color: Colors.red),
+                              icon: Icon(Icons.close, size: 18, color: Colors.red[300]),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
-                              onPressed: () {
-                                setState(() {
-                                  _latitud = null;
-                                  _longitud = null;
-                                });
-                              },
+                              tooltip: 'Eliminar ubicación',
+                              onPressed: _eliminarUbicacion,
                             ),
                           ],
                         ),
                       ),
-                    ElevatedButton.icon(
-                      onPressed: _cargandoUbicacion ? null : _capturarUbicacion,
-                      icon: _cargandoUbicacion
-                          ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                          : const Icon(Icons.my_location),
-                      label: Text(
-                        _cargandoUbicacion
-                            ? 'Obteniendo ubicación...'
-                            : (_latitud != null ? 'Recapturar Ubicación' : 'Capturar Ubicación Actual'),
-                      ),
-                    ),
-                    // Agregar este botón junto al botón "Capturar Ubicación Actual"
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        final resultado = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SelectorUbicacionMapa(
-                              latitudInicial: _latitud,
-                              longitudInicial: _longitud,
+
+                    Row(
+                      children: [
+                        // Botón: Capturar ubicación actual
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _cargandoUbicacion ? null : _capturarUbicacion,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.blue[700],
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(
+                                  color: _cargandoUbicacion ? Colors.grey : Colors.blue[700]!,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _cargandoUbicacion
+                                    ? SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.blue[700],
+                                  ),
+                                )
+                                    : Icon(
+                                  Icons.my_location,
+                                  size: 28,
+                                  color: Colors.blue[700],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _cargandoUbicacion
+                                      ? 'Obteniendo...'
+                                      : (_latitud != null ? 'Recapturar GPS' : 'Capturar GPS'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: _cargandoUbicacion ? Colors.grey : Colors.blue[700],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
                           ),
-                        );
+                        ),
 
-                        if (resultado != null) {
-                          setState(() {
-                            _latitud = resultado['latitud'];
-                            _longitud = resultado['longitud'];
-                          });
+                        const SizedBox(width: 12),
 
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Ubicación seleccionada desde el mapa'),
-                              backgroundColor: Colors.green,
+                        // Botón: Seleccionar en mapa
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _seleccionarEnMapa,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              backgroundColor: Colors.blue[700],
+                              foregroundColor: Colors.white,
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.map),
-                      label: const Text('Seleccionar en Mapa'),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.map,
+                                  size: 28,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _latitud != null ? 'Editar Mapa' : 'Abrir Mapa',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

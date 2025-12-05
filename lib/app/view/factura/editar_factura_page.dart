@@ -32,16 +32,18 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
   }
 
   void _agregarProducto() async {
-    final nuevoItem = await Navigator.push(
+    final nuevosItems = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const AgregarProductoFacturaPage(),
+        builder: (context) => AgregarProductoFacturaPage(
+          itemsIniciales: items,
+        ),
       ),
     );
 
-    if (nuevoItem != null) {
+    if (nuevosItems != null && nuevosItems is List<ItemFacturaModel>) {
       setState(() {
-        items.add(nuevoItem);
+        items = List<ItemFacturaModel>.from(nuevosItems);
       });
     }
   }

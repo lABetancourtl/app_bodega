@@ -1,5 +1,6 @@
 import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:app_bodega/app/service/location_service.dart';
+import 'package:app_bodega/app/view/client/selector_ubicacion_mapa.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -68,7 +69,8 @@ class _EditarClientePageState extends State<EditarClientePage> {
               content: Text(
                 'Ubicación capturada: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',
               ),
-              backgroundColor: Colors.green,
+              backgroundColor: Colors.black54,
+              duration: Duration(milliseconds: 1300),
             ),
           );
         }
@@ -77,7 +79,8 @@ class _EditarClientePageState extends State<EditarClientePage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('No se pudo obtener la ubicación'),
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.black54,
+              duration: Duration(milliseconds: 1300),
             ),
           );
         }
@@ -87,13 +90,56 @@ class _EditarClientePageState extends State<EditarClientePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.black54,
+            duration: Duration(milliseconds: 1300),
           ),
         );
       }
     } finally {
       setState(() => _cargandoUbicacion = false);
     }
+  }
+
+  Future<void> _seleccionarEnMapa() async {
+    final resultado = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SelectorUbicacionMapa(
+          latitudInicial: _latitud,
+          longitudInicial: _longitud,
+        ),
+      ),
+    );
+
+    if (resultado != null && mounted) {
+      setState(() {
+        _latitud = resultado['latitud'];
+        _longitud = resultado['longitud'];
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ubicación seleccionada desde el mapa'),
+          backgroundColor: Colors.black54,
+          duration: Duration(milliseconds: 1300),
+        ),
+      );
+    }
+  }
+
+  void _eliminarUbicacion() {
+    setState(() {
+      _latitud = null;
+      _longitud = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Ubicación eliminada'),
+        backgroundColor: Colors.black54,
+        duration: Duration(milliseconds: 1300),
+      ),
+    );
   }
 
   void _guardarCambios() {
@@ -130,7 +176,6 @@ class _EditarClientePageState extends State<EditarClientePage> {
                 controller: _nombreController,
                 decoration: InputDecoration(
                   labelText: 'Nombre del Cliente',
-                  hintText: 'Ej: Juan Pérez',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -149,7 +194,6 @@ class _EditarClientePageState extends State<EditarClientePage> {
                 controller: _nombreNegocioController,
                 decoration: InputDecoration(
                   labelText: 'Nombre del Negocio',
-                  hintText: 'Ej: Tienda Juan',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -168,7 +212,6 @@ class _EditarClientePageState extends State<EditarClientePage> {
                 controller: _direccionController,
                 decoration: InputDecoration(
                   labelText: 'Dirección',
-                  hintText: 'Ej: Calle Principal 123',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -191,8 +234,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
                   LengthLimitingTextInputFormatter(10),
                 ],
                 decoration: InputDecoration(
-                  labelText: 'Teléfono (Opcional)',
-                  hintText: 'Ej: 3001234567',
+                  labelText: 'Teléfono',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -225,10 +267,10 @@ class _EditarClientePageState extends State<EditarClientePage> {
               const SizedBox(height: 16),
 
               TextFormField(
+
                 controller: _observacionesController,
                 decoration: InputDecoration(
-                  labelText: 'Observaciones (Opcional)',
-                  hintText: 'Ej: No compra los martes',
+                  labelText: 'Observaciones',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -242,72 +284,160 @@ class _EditarClientePageState extends State<EditarClientePage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.blue[200]!),
+                  border: Border.all(
+                      color: Colors.black54
+                  ),
                   borderRadius: BorderRadius.circular(8),
-                  color: Colors.blue[50],
+                  // color: Colors.blue[50],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Ubicación del Negocio (Opcional)',
+                      'Ubicación del Negocio',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                        color: Colors.black54,
                       ),
                     ),
                     const SizedBox(height: 12),
+
                     // Mostrar ubicación capturada si existe
                     if (_latitud != null && _longitud != null)
                       Container(
                         padding: const EdgeInsets.all(8),
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
-                          color: Colors.green[50],
-                          border: Border.all(color: Colors.green),
+                          color: Colors.blue[50],
+                          border: Border.all(color: Colors.blue),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                            const Icon(Icons.check_circle, color: Colors.blue, size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Ubicación capturada',
+                                    'Ubicación guardada',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.green,
+                                      color: Colors.blue,
                                     ),
                                   ),
                                   Text(
                                     'Lat: ${_latitud?.toStringAsFixed(6)}, Lon: ${_longitud?.toStringAsFixed(6)}',
-                                    style: const TextStyle(fontSize: 11, color: Colors.green),
+                                    style: const TextStyle(fontSize: 11, color: Colors.blue),
                                   ),
                                 ],
                               ),
                             ),
+                            IconButton(
+                              icon: Icon(Icons.close, size: 18, color: Colors.red[300]),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Eliminar ubicación',
+                              onPressed: _eliminarUbicacion,
+                            ),
                           ],
                         ),
                       ),
-                    ElevatedButton.icon(
-                      onPressed: _cargandoUbicacion ? null : _capturarUbicacion,
-                      icon: _cargandoUbicacion
-                          ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
+
+                    Row(
+                      children: [
+                        // Botón: Capturar ubicación actual
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _cargandoUbicacion ? null : _capturarUbicacion,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.blue[700],
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(
+                                  color: _cargandoUbicacion ? Colors.grey : Colors.blue[700]!,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _cargandoUbicacion
+                                    ? SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.blue[700],
+                                  ),
+                                )
+                                    : Icon(
+                                  Icons.my_location,
+                                  size: 28,
+                                  color: Colors.blue[700],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _cargandoUbicacion
+                                      ? 'Obteniendo...'
+                                      : (_latitud != null ? 'Recapturar GPS' : 'Capturar GPS'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: _cargandoUbicacion ? Colors.grey : Colors.blue[700],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      )
-                          : const Icon(Icons.my_location),
-                      label: Text(
-                        _cargandoUbicacion ? 'Obteniendo ubicación...' : 'Capturar Ubicación Actual',
-                      ),
+
+                        const SizedBox(width: 12),
+
+                        // Botón: Seleccionar en mapa
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _seleccionarEnMapa,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              backgroundColor: Colors.blue[700],
+                              foregroundColor: Colors.white,
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.map,
+                                  size: 28,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _latitud != null ? 'Editar Mapa' : 'Abrir Mapa',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -319,13 +449,18 @@ class _EditarClientePageState extends State<EditarClientePage> {
                 onPressed: _guardarCambios,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.blue[700],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: const Text(
                   'Guardar Cambios',
                   style: TextStyle(fontSize: 16, color: Colors.white),
                 ),
               ),
+
+
             ],
           ),
         ),
