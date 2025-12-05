@@ -7,6 +7,7 @@ import 'package:app_bodega/app/view/client/view_ubicacion_cliente_page.dart';
 import 'package:app_bodega/app/view/client/mapa_clientes_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart'; // AÑADIR ESTA IMPORTACIÓN
 
 import 'historial_facturas_cliente_page.dart';
 
@@ -119,6 +120,187 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
     super.dispose();
   }
 
+  // ============= MÉTODOS DE COMUNICACIÓN =============
+
+  void _mostrarOpcionesComunicacion(BuildContext context, ClienteModel cliente) {
+    // Verificar si el cliente tiene teléfono
+    if (cliente.telefono == null || cliente.telefono!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Este cliente no tiene número de teléfono registrado'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Colors.grey[300]!),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Comunicarse con',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    cliente.nombreNegocio,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  Text(
+                    cliente.nombre,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  Text(
+                    cliente.telefono!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // LLAMADA TELEFÓNICA
+            ListTile(
+              leading: const Icon(Icons.phone),
+              title: const Text('Llamada telefónica'),
+              subtitle: const Text('Abrir marcador'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _realizarLlamada(context, cliente.telefono!);
+              },
+            ),
+
+            // WHATSAPP
+            ListTile(
+              leading: const Icon(Icons.chat),
+              title: const Text('WhatsApp'),
+              subtitle: const Text('Abrir chat'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _abrirWhatsApp(context, cliente.telefono!);
+              },
+            ),
+
+            // Espaciado inferior
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _realizarLlamada(BuildContext context, String telefono) async {
+    // Limpiar el número de caracteres no numéricos
+    final telefonoLimpio = telefono.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri telUri = Uri(scheme: 'tel', path: telefonoLimpio);
+
+    try {
+      if (await canLaunchUrl(telUri)) {
+        await launchUrl(telUri);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se puede realizar la llamada'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al realizar la llamada: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _abrirWhatsApp(BuildContext context, String telefono) async {
+    // Limpiar el número y asegurarse de que tenga el formato correcto
+    String telefonoLimpio = telefono.replaceAll(RegExp(r'[^\d+]'), '');
+
+    // Si el número no tiene código de país, agregarlo (ajusta según tu país)
+    // Ejemplo para Colombia (+57)
+    if (!telefonoLimpio.startsWith('+')) {
+      // Si el número comienza con 57 (código de Colombia sin +)
+      if (telefonoLimpio.startsWith('57')) {
+        telefonoLimpio = '+$telefonoLimpio';
+      } else {
+        // Agregar código de país por defecto (ajusta según tu necesidad)
+        telefonoLimpio = '+57$telefonoLimpio';
+      }
+    }
+
+    final Uri whatsappUri = Uri.parse('https://wa.me/$telefonoLimpio');
+
+    try {
+      if (await canLaunchUrl(whatsappUri)) {
+        await launchUrl(
+          whatsappUri,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se puede abrir WhatsApp. Asegúrate de tenerlo instalado.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al abrir WhatsApp: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  // ============= MÉTODOS EXISTENTES =============
+
   void _mostrarOpcionesCliente(
       BuildContext context,
       ClienteModel cliente,
@@ -147,7 +329,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    cliente.nombre,
+                    cliente.nombre ?? 'Sin nombre',
                     style: TextStyle(
                       fontSize: 15,
                       color: Colors.grey[600],
@@ -165,9 +347,22 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                 ],
               ),
             ),
+
+            // COMUNICAR (NUEVA OPCIÓN)
+            if (cliente.telefono != null && cliente.telefono!.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.contact_phone),
+                title: const Text('Comunicar'),
+                // subtitle: Text(cliente.telefono!),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _mostrarOpcionesComunicacion(context, cliente);
+                },
+              ),
+
             if (cliente.latitud != null && cliente.longitud != null)
               ListTile(
-                leading: Icon(Icons.map_outlined),
+                leading: const Icon(Icons.map_outlined),
                 title: const Text('Ver en mapa'),
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -202,7 +397,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                         SnackBar(
                           content: Text('Cliente ${clienteActualizado.nombre} actualizado',),
                           backgroundColor: Colors.black54,
-                          duration: Duration(milliseconds: 1300),
+                          duration: const Duration(milliseconds: 1300),
                         ),
                       );
                     }
@@ -214,7 +409,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                           SnackBar(
                             content: Text('Error: $e',),
                             backgroundColor: Colors.black54,
-                            duration: Duration(milliseconds: 1300),
+                            duration: const Duration(milliseconds: 1300),
                           )
                       );
                     }
@@ -284,7 +479,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                     SnackBar(
                       content: Text('Cliente ${cliente.nombre} eliminado'),
                       backgroundColor: Colors.black54,
-                      duration: Duration(milliseconds: 1300),
+                      duration: const Duration(milliseconds: 1300),
                     ),
                   );
                 }
@@ -294,7 +489,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                     SnackBar(
                       content: Text('Error al eliminar: $e'),
                       backgroundColor: Colors.black54,
-                      duration: Duration(milliseconds: 1300),
+                      duration: const Duration(milliseconds: 1300),
                     ),
                   );
                 }
@@ -402,7 +597,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
           SnackBar(
             content: Text('Error al cargar clientes: $err'),
             backgroundColor: Colors.black54,
-            duration: Duration(milliseconds: 1300),
+            duration: const Duration(milliseconds: 1300),
           ),
         );
       },
@@ -467,7 +662,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Wrap(
-                      spacing: 20, // <-- espacio horizontal entre chips
+                      spacing: 20,
                       children: List.generate(rutasDisponibles.length, (index) {
                         final ruta = rutasDisponibles[index];
                         final isSelected = filtros.rutaIndex == index;
@@ -493,7 +688,6 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                     ),
                   ),
                 )
-
               ],
             ),
           ),
@@ -604,7 +798,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                   SnackBar(
                     content: Text('Cliente ${nuevoCliente.nombre} agregado'),
                     backgroundColor: Colors.black54,
-                    duration: Duration(milliseconds: 1300),
+                    duration: const Duration(milliseconds: 1300),
                   ),
                 );
               }
@@ -616,7 +810,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                     SnackBar(
                       content: Text('Error: $e'),
                       backgroundColor: Colors.black54,
-                      duration: Duration(milliseconds: 1300),
+                      duration: const Duration(milliseconds: 1300),
                     )
                 );
               }

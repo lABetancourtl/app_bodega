@@ -5,6 +5,7 @@ import 'package:app_bodega/app/model/factura_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/view/factura/carrito_productos_page.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -255,24 +256,16 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
               Container(
                 width: double.infinity,
                 margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.blue, width: 2),
+                  border: Border.all(color: Colors.black54, width: 2),
                   borderRadius: BorderRadius.circular(12),
                   color: Colors.white,
                 ),
                 child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
+                  child: DropdownButton2<int>(
                     value: categoriaIndex,
                     isExpanded: true,
-                    icon: const Icon(Icons.arrow_drop_down, color: Colors.blue),
-                    menuMaxHeight: 400,
-                    alignment: AlignmentDirectional.bottomStart,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
+                    hint: const Text('Selecciona una categoría'),
                     items: categorias.asMap().entries.map((entry) {
                       final index = entry.key;
                       final categoria = entry.value;
@@ -280,9 +273,19 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
                         value: index,
                         child: Row(
                           children: [
-                            const Icon(Icons.category, color: Colors.blue, size: 20),
+                            const Icon(Icons.category, color: Colors.black54, size: 20),
                             const SizedBox(width: 12),
-                            Text(categoria.nombre),
+                            Expanded(
+                              child: Text(
+                                categoria.nombre,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       );
@@ -297,6 +300,39 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
                         );
                       }
                     },
+                    buttonStyleData: ButtonStyleData(
+                      height: 50,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white12,
+                      ),
+                    ),
+                    iconStyleData: const IconStyleData(
+                      icon: Icon(Icons.arrow_drop_down),
+                      iconSize: 24,
+                      iconEnabledColor: Colors.black,
+                    ),
+                    dropdownStyleData: DropdownStyleData(
+                      maxHeight: 400,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white,
+                      ),
+                      elevation: 8,
+                      // Esto fuerza que siempre abra hacia abajo
+                      direction: DropdownDirection.textDirection,
+                      offset: const Offset(0, -4),
+                      scrollbarTheme: ScrollbarThemeData(
+                        radius: const Radius.circular(40),
+                        thickness: MaterialStateProperty.all(6),
+                        thumbVisibility: MaterialStateProperty.all(true),
+                      ),
+                    ),
+                    menuItemStyleData: const MenuItemStyleData(
+                      height: 48,
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                    ),
                   ),
                 ),
               ),

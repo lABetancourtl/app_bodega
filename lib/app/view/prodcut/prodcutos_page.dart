@@ -7,6 +7,7 @@ import 'package:app_bodega/app/view/prodcut/crear_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/crear_producto_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_prodcuto_page.dart';
+import 'package:dropdown_button2/dropdown_button2.dart'; // AÑADIR ESTA IMPORTACIÓN
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -108,7 +109,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
         color: Colors.blue[100],
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Icon(
+      child: const Icon(
         Icons.image_rounded,
         size: 32,
       ),
@@ -249,42 +250,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
       }
     }
   }
-
-  // void _editarProducto(BuildContext context, ProductoModel producto, List<CategoriaModel> categorias) async {
-  //   final dbHelper = DatabaseHelper();
-  //   final productoActualizado = await Navigator.push(
-  //     context,
-  //     MaterialPageRoute(
-  //       builder: (context) => EditarProductoPage(
-  //         producto: producto,
-  //         categorias: categorias,
-  //       ),
-  //     ),
-  //   );
-  //
-  //   if (productoActualizado != null) {
-  //     try {
-  //       await dbHelper.actualizarProducto(productoActualizado);
-  //       // Invalidar ambas categorías por si cambió de categoría
-  //       ref.invalidate(productosPorCategoriaProvider(producto.categoriaId));
-  //       if (productoActualizado.categoriaId != producto.categoriaId) {
-  //         ref.invalidate(productosPorCategoriaProvider(productoActualizado.categoriaId));
-  //       }
-  //
-  //       if (context.mounted) {
-  //         ScaffoldMessenger.of(context).showSnackBar(
-  //           SnackBar(content: Text('Producto ${productoActualizado.nombre} actualizado')),
-  //         );
-  //       }
-  //     } catch (e) {
-  //       if (context.mounted) {
-  //         ScaffoldMessenger.of(context).showSnackBar(
-  //           SnackBar(content: Text('Error: $e')),
-  //         );
-  //       }
-  //     }
-  //   }
-  // }
 
   void _eliminarProducto(BuildContext context, ProductoModel producto) {
     final dbHelper = DatabaseHelper();
@@ -542,75 +507,106 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
 
           return Column(
             children: [
-              // Fila de categorías con indicador
+              // DROPDOWN DE CATEGORÍAS - NUEVO DISEÑO
               Container(
-                padding: const EdgeInsets.only(top: 8, bottom: 4),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                width: double.infinity,
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.black54, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                ),
+                child: Row(
                   children: [
-                    SizedBox(
-                      height: 48,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        itemCount: categorias.length,
-                        itemBuilder: (context, index) {
-                          final categoria = categorias[index];
-                          final isSelected = categoriaIndex == index;
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: GestureDetector(
-                              onLongPress: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: Text(categoria.nombre),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.pop(context);
-                                          _editarCategoria(context, categoria);
-                                        },
-                                        child: const Text('Editar'),
+                    // Dropdown principal
+                    Expanded(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton2<int>(
+                          value: categoriaIndex,
+                          isExpanded: true,
+                          hint: const Text('Selecciona una categoría'),
+                          items: categorias.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final categoria = entry.value;
+                            return DropdownMenuItem<int>(
+                              value: index,
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.category, color: Colors.black54, size: 20),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      categoria.nombre,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
                                       ),
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.pop(context);
-                                          _eliminarCategoria(context, categoria);
-                                        },
-                                        child: const Text(
-                                          'Eliminar',
-                                          style: TextStyle(color: Colors.red),
-                                        ),
-                                      ),
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: const Text('Cancelar'),
-                                      ),
-                                    ],
+                                    ),
                                   ),
-                                );
-                              },
-                              child: FilterChip(
-                                label: Text(categoria.nombre),
-                                selected: isSelected,
-                                onSelected: (selected) {
-                                  ref.read(categoriaIndexProvider.notifier).state = index;
-                                  _pageController.animateToPage(
-                                    index,
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                  );
-                                },
-                                backgroundColor: Colors.grey[200],
-                                selectedColor: Colors.blue,
-                                labelStyle: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.black,
-                                ),
+                                ],
                               ),
+                            );
+                          }).toList(),
+                          onChanged: (int? nuevoIndex) {
+                            if (nuevoIndex != null) {
+                              ref.read(categoriaIndexProvider.notifier).state = nuevoIndex;
+                              _pageController.animateToPage(
+                                nuevoIndex,
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            }
+                          },
+                          buttonStyleData: ButtonStyleData(
+                            height: 50,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.white,
                             ),
-                          );
+                          ),
+                          iconStyleData: const IconStyleData(
+                            icon: Icon(Icons.arrow_drop_down),
+                            iconSize: 24,
+                            iconEnabledColor: Colors.black,
+                          ),
+                          dropdownStyleData: DropdownStyleData(
+                            maxHeight: 400,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.white,
+                            ),
+                            elevation: 8,
+                            direction: DropdownDirection.textDirection,
+                            offset: const Offset(0, -4),
+                            scrollbarTheme: ScrollbarThemeData(
+                              radius: const Radius.circular(40),
+                              thickness: MaterialStateProperty.all(6),
+                              thumbVisibility: MaterialStateProperty.all(true),
+                            ),
+                          ),
+                          menuItemStyleData: const MenuItemStyleData(
+                            height: 48,
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Botón de opciones de categoría
+                    Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(color: Colors.grey[300]!, width: 1),
+                        ),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.more_vert, color: Colors.black54),
+                        onPressed: () {
+                          final categoria = categorias[categoriaIndex];
+                          _mostrarOpcionesCategoria(context, categoria);
                         },
                       ),
                     ),
@@ -618,7 +614,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 ),
               ),
 
-              // PageView con los productos
+              // PageView con las listas de productos
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
@@ -627,7 +623,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                     ref.read(categoriaIndexProvider.notifier).state = index;
                   },
                   itemBuilder: (context, pageIndex) {
-                    // Obtener la categoría específica para esta página
                     final categoria = categorias[pageIndex];
                     final productosAsync = ref.watch(productosPorCategoriaProvider(categoria.id!));
 
@@ -669,6 +664,77 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
           child: const Icon(Icons.add),
         ),
         orElse: () => null,
+      ),
+    );
+  }
+
+  void _mostrarOpcionesCategoria(BuildContext context, CategoriaModel categoria) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            // Header con el nombre de la categoría
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Colors.grey[300]!),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    categoria.nombre,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Opciones de categoría',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // EDITAR CATEGORÍA
+            ListTile(
+              leading: const Icon(Icons.edit,),
+              title: const Text('Editar categoría'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _editarCategoria(context, categoria);
+              },
+            ),
+
+            // ELIMINAR CATEGORÍA
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text(
+                'Eliminar categoría',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _eliminarCategoria(context, categoria);
+              },
+            ),
+
+            // Espaciado inferior para mejor UX
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

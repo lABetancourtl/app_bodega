@@ -15,6 +15,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CALL_PHONE"/>
 
     <application
         android:label="app_bodega"
@@ -56,6 +57,11 @@
         <!-- WhatsApp -->
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
+
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+            <data android:scheme="tel"/>
+        </intent>
 
         <!-- Navegadores -->
         <intent>

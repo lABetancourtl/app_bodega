@@ -253,26 +253,41 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
                         ),
                       ],
                     ),
+
                     if (_ubicacionSeleccionada != null) ...[
                       const Divider(height: 16),
                       Row(
                         children: [
-                          const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                          const Icon(Icons.check_circle, color: Colors.black54, size: 20),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              'Lat: ${_ubicacionSeleccionada!.latitude.toStringAsFixed(6)}\n'
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Lat: ${_ubicacionSeleccionada!.latitude.toStringAsFixed(6)}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.black54,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 12), // espacio entre Lat y Lon
+                                Text(
                                   'Lon: ${_ubicacionSeleccionada!.longitude.toStringAsFixed(6)}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.green,
-                                fontWeight: FontWeight.w600,
-                              ),
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.black54,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
-                      ),
+                      )
                     ],
+
                     if (_cargandoUbicacion) ...[
                       const Divider(height: 16),
                       Row(
@@ -315,10 +330,11 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
                 if (_miUbicacionActual != null)
                   FloatingActionButton(
                     heroTag: 'usarMiUbicacion',
-                    backgroundColor: Colors.green,
+                    mini: true,
+                    backgroundColor: Colors.white,
                     tooltip: 'Usar mi ubicación actual',
                     onPressed: _usarMiUbicacion,
-                    child: const Icon(Icons.gps_fixed, color: Colors.white),
+                    child: const Icon(Icons.gps_fixed, color: Colors.black),
                   ),
 
                 if (_miUbicacionActual != null)
@@ -327,6 +343,7 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
                 // Mi ubicación (centrar)
                 FloatingActionButton(
                   heroTag: 'miUbicacion',
+                  mini: true,
                   backgroundColor: Colors.white,
                   onPressed: _cargandoUbicacion ? null : _centrarEnMiUbicacion,
                   tooltip: 'Centrar en mi ubicación',
@@ -339,7 +356,7 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
                       color: Colors.blue,
                     ),
                   )
-                      : const Icon(Icons.my_location, color: Colors.black),
+                      : const Icon(Icons.location_pin, color: Colors.black),
                 ),
                 const SizedBox(height: 8),
 
@@ -390,6 +407,9 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                   elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
                 ),
               ),
             ),

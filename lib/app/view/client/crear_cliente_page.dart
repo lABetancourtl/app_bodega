@@ -454,13 +454,17 @@ class _CrearClientePageState extends State<CrearClientePage> {
                 onPressed: _guardarCliente,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.blue[700],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: const Text(
                   'Guardar Cliente',
                   style: TextStyle(fontSize: 16, color: Colors.white),
                 ),
               ),
+
             ],
           ),
         ),
