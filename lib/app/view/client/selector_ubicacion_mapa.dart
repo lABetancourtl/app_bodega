@@ -3,6 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:app_bodega/app/service/location_service.dart';
 
+import '../../widgets/pulse_marker.dart';
+
 class SelectorUbicacionMapa extends StatefulWidget {
   final double? latitudInicial;
   final double? longitudInicial;
@@ -132,35 +134,16 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
         ),
       );
     }
-
-    // Marcador de mi ubicación actual (si está disponible y es diferente)
     if (_miUbicacionActual != null && _mostrarMiUbicacion) {
-      final esLaMismaUbicacion = _ubicacionSeleccionada != null &&
-          (_ubicacionSeleccionada!.latitude - _miUbicacionActual!.latitude).abs() < 0.0001 &&
-          (_ubicacionSeleccionada!.longitude - _miUbicacionActual!.longitude).abs() < 0.0001;
-
-      if (!esLaMismaUbicacion) {
-        marcadores.add(
-          Marker(
-            point: _miUbicacionActual!,
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.3),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.blue, width: 3),
-              ),
-              child: const Icon(
-                Icons.my_location,
-                color: Colors.blue,
-                size: 20,
-              ),
-            ),
-          ),
-        );
-      }
+      marcadores.add(
+        Marker(
+          point: _miUbicacionActual!,
+          width: 80,
+          height: 80,
+          alignment: Alignment.center,
+          child: const PulseMarker(),
+        ),
+      );
     }
 
     return marcadores;

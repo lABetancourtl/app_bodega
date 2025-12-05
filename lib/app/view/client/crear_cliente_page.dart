@@ -67,8 +67,8 @@ class _CrearClientePageState extends State<CrearClientePage> {
               content: Text(
                 'Ubicación capturada: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',
               ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
+              backgroundColor: Colors.black54,
+              duration: Duration(milliseconds: 1300),
             ),
           );
         }
@@ -77,7 +77,8 @@ class _CrearClientePageState extends State<CrearClientePage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('No se pudo obtener la ubicación'),
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.black54,
+              duration: Duration(milliseconds: 1300),
             ),
           );
         }
@@ -87,7 +88,8 @@ class _CrearClientePageState extends State<CrearClientePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.black54,
+            duration: Duration(milliseconds: 1300),
           ),
         );
       }

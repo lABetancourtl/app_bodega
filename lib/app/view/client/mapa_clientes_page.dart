@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:app_bodega/app/service/location_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../widgets/clientes_pulse_market.dart';
 import '../../widgets/pulse_marker.dart';
@@ -21,15 +22,25 @@ class MapaClientesPage extends StatefulWidget {
 
 class _MapaClientesPageState extends State<MapaClientesPage> {
   final MapController _mapController = MapController();
+  final TextEditingController _searchController = TextEditingController();
   LatLng? _miUbicacion;
   bool _cargandoUbicacion = false;
   Ruta? _filtroRuta;
   ClienteModel? _clienteSeleccionado;
+  String _busqueda = '';
+  bool _mostrarBusqueda = false;
+  final Set<String> _clientesVisitadosHoy = {};
 
   @override
   void initState() {
     super.initState();
     _cargarMiUbicacion();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _cargarMiUbicacion() async {
@@ -43,7 +54,6 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
         _miUbicacion = LatLng(position.latitude, position.longitude);
       });
 
-      // Centrar mapa en mi ubicación
       _mapController.move(_miUbicacion!, 13.0);
     }
 
@@ -54,14 +64,27 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
     final conUbicacion = widget.clientes
         .where((c) => c.latitud != null && c.longitud != null);
 
-    if (_filtroRuta == null) return conUbicacion.toList();
-    return conUbicacion.where((c) => c.ruta == _filtroRuta).toList();
+    var filtrados = conUbicacion;
+
+    // Filtro por ruta
+    if (_filtroRuta != null) {
+      filtrados = filtrados.where((c) => c.ruta == _filtroRuta);
+    }
+
+    // Filtro por búsqueda
+    if (_busqueda.isNotEmpty) {
+      filtrados = filtrados.where((c) =>
+      c.nombreNegocio.toLowerCase().contains(_busqueda.toLowerCase()) ||
+          c.nombre.toLowerCase().contains(_busqueda.toLowerCase()) ||
+          c.direccion.toLowerCase().contains(_busqueda.toLowerCase()));
+    }
+
+    return filtrados.toList();
   }
 
   List<Marker> _construirMarcadores() {
     final marcadores = <Marker>[];
 
-    // Marcador de mi ubicación (más grande y destacado)
     if (_miUbicacion != null) {
       marcadores.add(
         Marker(
@@ -74,23 +97,52 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
       );
     }
 
-    // Marcadores de clientes - AUMENTADO EL HEIGHT
     for (final cliente in clientesFiltrados) {
       if (cliente.latitud != null && cliente.longitud != null) {
         final esSeleccionado = _clienteSeleccionado?.id == cliente.id;
+        final fueVisitado = _clientesVisitadosHoy.contains(cliente.id);
 
         marcadores.add(
           Marker(
             point: LatLng(cliente.latitud!, cliente.longitud!),
             width: 100,
-            height: 120, // Aumentado de 100 a 120
+            height: 120,
             alignment: Alignment.center,
             child: GestureDetector(
               onTap: () => _mostrarInfoCliente(cliente),
-              child: ClientesPulseMarker(
-                nombre: cliente.nombreNegocio,
-                color: _getColorRuta(cliente.ruta),
-                esSeleccionado: esSeleccionado,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClientesPulseMarker(
+                    nombre: cliente.nombreNegocio,
+                    color: _getColorRuta(cliente.ruta),
+                    esSeleccionado: esSeleccionado,
+                  ),
+                  // Indicador de visita
+                  if (fueVisitado)
+                    Positioned(
+                      top: -5,
+                      right: 5,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -115,6 +167,257 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
     }
   }
 
+  // NUEVA FUNCIÓN: Navegar al cliente
+  Future<void> _navegarACliente(ClienteModel cliente) async {
+    if (cliente.latitud == null || cliente.longitud == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Este cliente no tiene ubicación')),
+      );
+      return;
+    }
+
+    // Mostrar opciones de navegación
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.map, color: Colors.blue),
+              title: const Text('Google Maps'),
+              onTap: () async {
+                Navigator.pop(context);
+                final url = Uri.parse(
+                  'https://www.google.com/maps/dir/?api=1&destination=${cliente.latitud},${cliente.longitud}',
+                );
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.navigation, color: Colors.orange),
+              title: const Text('Waze'),
+              onTap: () async {
+                Navigator.pop(context);
+                final url = Uri.parse(
+                  'https://waze.com/ul?ll=${cliente.latitud},${cliente.longitud}&navigate=yes',
+                );
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // NUEVA FUNCIÓN: Optimizar ruta
+  void _optimizarRuta() {
+    if (_miUbicacion == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Necesitamos tu ubicación para optimizar la ruta'),
+        ),
+      );
+      return;
+    }
+
+    final clientesConDistancia = clientesFiltrados.map((cliente) {
+      final distancia = _calcularDistancia(cliente);
+      return {'cliente': cliente, 'distancia': distancia};
+    }).toList();
+
+    // Ordenar por distancia
+    clientesConDistancia.sort((a, b) =>
+        (a['distancia'] as double).compareTo(b['distancia'] as double));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    const Icon(Icons.route, color: Colors.blue),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Ruta Optimizada',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${clientesConDistancia.length} clientes',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Ordenados del más cercano al más lejano',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const Divider(height: 24),
+              // Lista
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: clientesConDistancia.length,
+                  itemBuilder: (context, index) {
+                    final item = clientesConDistancia[index];
+                    final cliente = item['cliente'] as ClienteModel;
+                    final distancia = item['distancia'] as double;
+                    final fueVisitado = _clientesVisitadosHoy.contains(cliente.id);
+
+                    return ListTile(
+                      leading: Stack(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: _getColorRuta(cliente.ruta),
+                            child: Text(
+                              '${index + 1}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          if (fueVisitado)
+                            Positioned(
+                              right: -2,
+                              top: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 12,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      title: Text(
+                        cliente.nombreNegocio,
+                        style: TextStyle(
+                          decoration: fueVisitado
+                              ? TextDecoration.lineThrough
+                              : null,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${distancia.toStringAsFixed(0)} metros',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.location_on, size: 20),
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _mostrarInfoCliente(cliente);
+                            },
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              fueVisitado ? Icons.undo : Icons.check_circle_outline,
+                              size: 20,
+                              color: fueVisitado ? Colors.orange : Colors.green,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                if (fueVisitado) {
+                                  _clientesVisitadosHoy.remove(cliente.id);
+                                } else {
+                                  _clientesVisitadosHoy.add(cliente.id!);
+                                }
+                              });
+                              Navigator.pop(context);
+                              _optimizarRuta(); // Recargar el modal
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // NUEVA FUNCIÓN: Centrar en todos los clientes
+  void _centrarEnTodosLosClientes() {
+    final clientes = clientesFiltrados;
+    if (clientes.isEmpty) return;
+
+    double minLat = clientes.first.latitud!;
+    double maxLat = clientes.first.latitud!;
+    double minLon = clientes.first.longitud!;
+    double maxLon = clientes.first.longitud!;
+
+    for (final cliente in clientes) {
+      if (cliente.latitud! < minLat) minLat = cliente.latitud!;
+      if (cliente.latitud! > maxLat) maxLat = cliente.latitud!;
+      if (cliente.longitud! < minLon) minLon = cliente.longitud!;
+      if (cliente.longitud! > maxLon) maxLon = cliente.longitud!;
+    }
+
+    final center = LatLng(
+      (minLat + maxLat) / 2,
+      (minLon + maxLon) / 2,
+    );
+
+    _mapController.move(center, 13.0);
+  }
+
   void _mostrarInfoCliente(ClienteModel cliente) {
     setState(() {
       _clienteSeleccionado = cliente;
@@ -124,6 +427,8 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
       LatLng(cliente.latitud!, cliente.longitud!),
       16.0,
     );
+
+    final fueVisitado = _clientesVisitadosHoy.contains(cliente.id);
 
     showModalBottomSheet(
       context: context,
@@ -140,7 +445,6 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Handle del modal
               Center(
                 child: Container(
                   width: 40,
@@ -153,7 +457,6 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
               ),
               const SizedBox(height: 16),
 
-              // Título con icono de ruta
               Row(
                 children: [
                   Container(
@@ -192,12 +495,41 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
                       ],
                     ),
                   ),
+                  // Indicador de visita
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: fueVisitado ? Colors.green : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          fueVisitado ? Icons.check_circle : Icons.radio_button_unchecked,
+                          size: 16,
+                          color: fueVisitado ? Colors.white : Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          fueVisitado ? 'Visitado' : 'Pendiente',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: fueVisitado ? Colors.white : Colors.grey[600],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
 
               const Divider(height: 24),
 
-              // Información del cliente
               _buildInfoRow(Icons.person, 'Cliente', cliente.nombre),
               const SizedBox(height: 8),
               _buildInfoRow(Icons.location_on, 'Dirección', cliente.direccion),
@@ -216,46 +548,43 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
                 ),
               ],
 
-              const SizedBox(height: 8),
-              _buildInfoRow(
-                Icons.my_location,
-                'Coordenadas',
-                '${cliente.latitud?.toStringAsFixed(6)}, ${cliente.longitud?.toStringAsFixed(6)}',
-              ),
-
               const SizedBox(height: 20),
 
-              // Botones de acción
+              // Botones de acción mejorados
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        Navigator.pop(context);
                         setState(() {
-                          _clienteSeleccionado = null;
+                          if (fueVisitado) {
+                            _clientesVisitadosHoy.remove(cliente.id);
+                          } else {
+                            _clientesVisitadosHoy.add(cliente.id!);
+                          }
                         });
+                        Navigator.pop(context);
                       },
-                      icon: const Icon(Icons.close),
-                      label: const Text('Cerrar'),
+                      icon: Icon(fueVisitado ? Icons.undo : Icons.check),
+                      label: Text(fueVisitado ? 'Desmarcar' : 'Marcar'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
+                        foregroundColor: fueVisitado ? Colors.orange : Colors.green,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
-                        // Aquí puedes navegar a los detalles del cliente
-                        // Navigator.push(context, MaterialPageRoute(...))
+                        _navegarACliente(cliente);
                       },
-                      icon: const Icon(Icons.info),
-                      label: const Text('Ver Detalles'),
+                      icon: const Icon(Icons.directions),
+                      label: const Text('Navegar'),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        backgroundColor: _getColorRuta(cliente.ruta),
+                        backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
                       ),
                     ),
@@ -324,12 +653,26 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
         .length;
 
     final clientesSinUbicacion = widget.clientes.length - clientesConUbicacion;
+    final clientesVisitados = _clientesVisitadosHoy.length;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mapa de Clientes'),
         centerTitle: true,
         actions: [
+          // Búsqueda
+          IconButton(
+            icon: Icon(_mostrarBusqueda ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                _mostrarBusqueda = !_mostrarBusqueda;
+                if (!_mostrarBusqueda) {
+                  _busqueda = '';
+                  _searchController.clear();
+                }
+              });
+            },
+          ),
           // Filtro por ruta
           PopupMenuButton<Ruta?>(
             icon: Icon(
@@ -371,11 +714,68 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
               )),
             ],
           ),
+          // Menú de opciones
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              switch (value) {
+                case 'optimizar':
+                  _optimizarRuta();
+                  break;
+                case 'centrar':
+                  _centrarEnTodosLosClientes();
+                  break;
+                case 'limpiar':
+                  setState(() {
+                    _clientesVisitadosHoy.clear();
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Visitas limpiadas'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'optimizar',
+                child: Row(
+                  children: [
+                    Icon(Icons.route, size: 20),
+                    SizedBox(width: 12),
+                    Text('Optimizar ruta'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'centrar',
+                child: Row(
+                  children: [
+                    Icon(Icons.center_focus_strong, size: 20),
+                    SizedBox(width: 12),
+                    Text('Centrar todo'),
+                  ],
+                ),
+              ),
+              if (clientesVisitados > 0)
+                const PopupMenuItem(
+                  value: 'limpiar',
+                  child: Row(
+                    children: [
+                      Icon(Icons.cleaning_services, size: 20),
+                      SizedBox(width: 12),
+                      Text('Limpiar visitas'),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
       body: Stack(
         children: [
-          // Mapa principal
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -408,107 +808,141 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
             ],
           ),
 
-          // Panel de información superior
-          Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 18,
-                          color: Colors.blue[700],
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Total: ${widget.clientes.length} clientes',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
+          // Barra de búsqueda
+          if (_mostrarBusqueda)
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: Card(
+                elevation: 4,
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar cliente...',
+                    prefixIcon: Icon(Icons.search),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _buildChip(
-                          Icons.location_on,
-                          '$clientesConUbicacion con ubicación',
-                          Colors.green,
-                        ),
-                        const SizedBox(width: 8),
-                        if (clientesSinUbicacion > 0)
-                          _buildChip(
-                            Icons.location_off,
-                            '$clientesSinUbicacion sin ubicación',
-                            Colors.orange,
-                          ),
-                      ],
-                    ),
-                    if (_filtroRuta != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getColorRuta(_filtroRuta!).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: _getColorRuta(_filtroRuta!),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.filter_list,
-                              size: 14,
-                              color: _getColorRuta(_filtroRuta!),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Mostrando: ${_filtroRuta.toString().split('.').last.toUpperCase()}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: _getColorRuta(_filtroRuta!),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
+                  onChanged: (value) {
+                    setState(() => _busqueda = value);
+                  },
                 ),
               ),
             ),
-          ),
 
-          // Controles de mapa (derecha)
+          // Panel de información
+          if (!_mostrarBusqueda)
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 18,
+                            color: Colors.blue[700],
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Total: ${widget.clientes.length} clientes',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildChip(
+                            Icons.location_on,
+                            '$clientesConUbicacion ubicados',
+                            Colors.green,
+                          ),
+                          if (clientesSinUbicacion > 0)
+                            _buildChip(
+                              Icons.location_off,
+                              '$clientesSinUbicacion sin ubicar',
+                              Colors.orange,
+                            ),
+                          if (clientesVisitados > 0)
+                            _buildChip(
+                              Icons.check_circle,
+                              '$clientesVisitados visitados',
+                              Colors.blue,
+                            ),
+                        ],
+                      ),
+                      if (_filtroRuta != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getColorRuta(_filtroRuta!).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _getColorRuta(_filtroRuta!),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.filter_list,
+                                size: 14,
+                                color: _getColorRuta(_filtroRuta!),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Mostrando: ${_filtroRuta.toString().split('.').last.toUpperCase()}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _getColorRuta(_filtroRuta!),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Controles de mapa
           Positioned(
             bottom: 20,
             right: 16,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Mi ubicación
                 FloatingActionButton(
                   heroTag: 'miUbicacion',
                   mini: true,
@@ -520,15 +954,12 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
-                      color: Colors.white,
                       strokeWidth: 2,
                     ),
                   )
-                      : const Icon(Icons.my_location, color: Colors.black,),
+                      : const Icon(Icons.my_location, color: Colors.black),
                 ),
                 const SizedBox(height: 12),
-
-                // Zoom in
                 FloatingActionButton.small(
                   heroTag: 'zoomIn',
                   onPressed: () {
@@ -541,8 +972,6 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
                   child: const Icon(Icons.add, color: Colors.black),
                 ),
                 const SizedBox(height: 8),
-
-                // Zoom out
                 FloatingActionButton.small(
                   heroTag: 'zoomOut',
                   onPressed: () {
@@ -555,6 +984,22 @@ class _MapaClientesPageState extends State<MapaClientesPage> {
                   child: const Icon(Icons.remove, color: Colors.black),
                 ),
               ],
+            ),
+          ),
+
+          // Botón de optimizar ruta
+          Positioned(
+            bottom: 20,
+            left: 16,
+            child: FloatingActionButton.extended(
+              heroTag: 'optimizarRuta',
+              onPressed: _optimizarRuta,
+              backgroundColor: Colors.blue,
+              icon: const Icon(Icons.route, color: Colors.white),
+              label: const Text(
+                'Optimizar Ruta',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ),
         ],

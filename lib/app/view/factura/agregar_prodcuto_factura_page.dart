@@ -930,7 +930,7 @@ class _ProductoCard extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      'Subtotal: \${_formatearPrecio(itemEnCarrito!.subtotal)}',
+                      'Subtotal: \$${_formatearPrecio(itemEnCarrito!.subtotal)}',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.green.shade800,
