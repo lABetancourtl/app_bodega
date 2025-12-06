@@ -5,6 +5,7 @@ import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:app_bodega/app/service/cloudinary_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class EditarProductoPage extends StatefulWidget {
   final ProductoModel producto;
@@ -28,6 +29,7 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
   late TextEditingController _nombreController;
   late TextEditingController _precioController;
   late TextEditingController _cantidadPacaController;
+  late TextEditingController _codigoBarrasController; // ← NUEVO
 
   late CategoriaModel _categoriaSeleccionada;
   late List<TextEditingController> _saborControllers;
@@ -43,6 +45,9 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
     _cantidadPacaController = TextEditingController(
       text: widget.producto.cantidadPorPaca?.toString() ?? '',
     );
+    _codigoBarrasController = TextEditingController(
+      text: widget.producto.codigoBarras ?? '', // ← NUEVO
+    );
     _categoriaSeleccionada = widget.categorias.firstWhere(
           (c) => c.id == widget.producto.categoriaId,
     );
@@ -50,7 +55,6 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
         .map((sabor) => TextEditingController(text: sabor))
         .toList();
 
-    // Guardar la URL actual de la imagen (solo si es URL de Cloudinary)
     if (widget.producto.imagenPath != null &&
         widget.producto.imagenPath!.startsWith('http')) {
       _imagenActual = widget.producto.imagenPath;
@@ -62,6 +66,7 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
     _nombreController.dispose();
     _precioController.dispose();
     _cantidadPacaController.dispose();
+    _codigoBarrasController.dispose(); // ← NUEVO
     for (var controller in _saborControllers) {
       controller.dispose();
     }
@@ -118,6 +123,28 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error al seleccionar la imagen')),
+        );
+      }
+    }
+  }
+
+  // ============= NUEVO: ESCANEAR CÓDIGO DE BARRAS =============
+  Future<void> _escanearCodigoBarras() async {
+    final resultado = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const BarcodeScannerPage(),
+      ),
+    );
+
+    if (resultado != null && resultado is String) {
+      setState(() {
+        _codigoBarrasController.text = resultado;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Código escaneado: $resultado')),
         );
       }
     }
@@ -285,14 +312,12 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
             onPressed: () async {
               Navigator.pop(dialogContext);
 
-              // Extraer public_id y eliminar de Cloudinary
               final publicId = _extraerPublicIdCloudinary(_imagenActual!);
               if (publicId.isNotEmpty) {
                 print('🗑️ Eliminando imagen actual de Cloudinary: $publicId');
                 await _cloudinaryHelper.eliminarImagen(publicId);
               }
 
-              // Limpiar la imagen actual
               if (mounted) {
                 setState(() {
                   _imagenActual = null;
@@ -384,6 +409,9 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
             ? null
             : int.parse(_cantidadPacaController.text),
         imagenPath: imagenUrl,
+        codigoBarras: _codigoBarrasController.text.isEmpty
+            ? null
+            : _codigoBarrasController.text, // ← NUEVO
       );
 
       if (mounted) {
@@ -531,6 +559,26 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
               ),
               const SizedBox(height: 16),
 
+              // ============= NUEVO: CÓDIGO DE BARRAS =============
+              TextFormField(
+                controller: _codigoBarrasController,
+                decoration: InputDecoration(
+                  labelText: 'Código de Barras (Opcional)',
+                  hintText: 'Ej: 7501234567890',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  prefixIcon: const Icon(Icons.qr_code_scanner),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.camera_alt, color: Colors.blue),
+                    onPressed: _escanearCodigoBarras,
+                    tooltip: 'Escanear código de barras',
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+
               TextFormField(
                 controller: _precioController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -648,4 +696,163 @@ class _EditarProductoPageState extends State<EditarProductoPage> {
       ),
     );
   }
+}
+
+// ============= PÁGINA DE ESCÁNER (REUTILIZABLE) =============
+class BarcodeScannerPage extends StatefulWidget {
+  const BarcodeScannerPage({super.key});
+
+  @override
+  State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
+}
+
+class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
+  MobileScannerController cameraController = MobileScannerController();
+  bool _isScanning = true;
+  bool _torchOn = false;
+
+  @override
+  void dispose() {
+    cameraController.dispose();
+    super.dispose();
+  }
+
+  void _onBarcodeDetect(BarcodeCapture capture) {
+    if (!_isScanning) return;
+
+    final List<Barcode> barcodes = capture.barcodes;
+
+    if (barcodes.isNotEmpty) {
+      final String? code = barcodes.first.rawValue;
+
+      if (code != null && code.isNotEmpty) {
+        setState(() {
+          _isScanning = false;
+        });
+
+        Navigator.pop(context, code);
+      }
+    }
+  }
+
+  void _toggleTorch() {
+    setState(() {
+      _torchOn = !_torchOn;
+    });
+    cameraController.toggleTorch();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Escanear Código de Barras'),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _torchOn ? Icons.flash_on : Icons.flash_off,
+              color: _torchOn ? Colors.yellow : Colors.grey,
+            ),
+            onPressed: _toggleTorch,
+          ),
+          IconButton(
+            icon: const Icon(Icons.flip_camera_ios),
+            onPressed: () => cameraController.switchCamera(),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: cameraController,
+            onDetect: _onBarcodeDetect,
+          ),
+
+          CustomPaint(
+            painter: ScannerOverlay(),
+            child: Container(),
+          ),
+
+          Positioned(
+            bottom: 100,
+            left: 0,
+            right: 0,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Coloca el código de barras dentro del marco',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ScannerOverlay extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black.withOpacity(0.5)
+      ..style = PaintingStyle.fill;
+
+    final double scanAreaSize = size.width * 0.7;
+    final double left = (size.width - scanAreaSize) / 2;
+    final double top = (size.height - scanAreaSize) / 2;
+
+    canvas.drawPath(
+      Path()
+        ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+        ..addRRect(RRect.fromRectAndRadius(
+          Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize),
+          const Radius.circular(12),
+        ))
+        ..fillType = PathFillType.evenOdd,
+      paint,
+    );
+
+    final borderPaint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize),
+        const Radius.circular(12),
+      ),
+      borderPaint,
+    );
+
+    final cornerPaint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6;
+
+    final cornerLength = 40.0;
+
+    canvas.drawLine(Offset(left, top), Offset(left + cornerLength, top), cornerPaint);
+    canvas.drawLine(Offset(left, top), Offset(left, top + cornerLength), cornerPaint);
+    canvas.drawLine(Offset(left + scanAreaSize, top), Offset(left + scanAreaSize - cornerLength, top), cornerPaint);
+    canvas.drawLine(Offset(left + scanAreaSize, top), Offset(left + scanAreaSize, top + cornerLength), cornerPaint);
+    canvas.drawLine(Offset(left, top + scanAreaSize), Offset(left + cornerLength, top + scanAreaSize), cornerPaint);
+    canvas.drawLine(Offset(left, top + scanAreaSize), Offset(left, top + scanAreaSize - cornerLength), cornerPaint);
+    canvas.drawLine(Offset(left + scanAreaSize, top + scanAreaSize), Offset(left + scanAreaSize - cornerLength, top + scanAreaSize), cornerPaint);
+    canvas.drawLine(Offset(left + scanAreaSize, top + scanAreaSize), Offset(left + scanAreaSize, top + scanAreaSize - cornerLength), cornerPaint);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

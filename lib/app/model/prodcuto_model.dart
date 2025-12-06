@@ -1,11 +1,12 @@
 class ProductoModel {
-  final String? id;  // ← Cambiar de int? a String?
+  final String? id;
   final String nombre;
-  final String categoriaId;  // ← Ya debe ser String
+  final String categoriaId;
   final List<String> sabores;
   final double precio;
   final int? cantidadPorPaca;
   final String? imagenPath;
+  final String? codigoBarras;
 
   ProductoModel({
     this.id,
@@ -15,6 +16,7 @@ class ProductoModel {
     required this.precio,
     this.cantidadPorPaca,
     this.imagenPath,
+    this.codigoBarras,
   });
 
   Map<String, dynamic> toMap() {
@@ -25,18 +27,20 @@ class ProductoModel {
       'precio': precio,
       'cantidadPorPaca': cantidadPorPaca,
       'imagenPath': imagenPath,
+      'codigoBarras': codigoBarras,
     };
   }
 
   factory ProductoModel.fromMap(Map<String, dynamic> map, String docId) {
     return ProductoModel(
-      id: docId,  // ← Pasar el ID del documento
+      id: docId,
       nombre: map['nombre'] as String,
       categoriaId: map['categoriaId'] as String,
       sabores: List<String>.from(map['sabores'] as List),
       precio: (map['precio'] as num).toDouble(),
       cantidadPorPaca: map['cantidadPorPaca'] as int?,
       imagenPath: map['imagenPath'] as String?,
+      codigoBarras: map['codigoBarras'] as String?,
     );
   }
 
@@ -48,6 +52,7 @@ class ProductoModel {
     double? precio,
     int? cantidadPorPaca,
     String? imagenPath,
+    String? codigoBarras,
   }) {
     return ProductoModel(
       id: id ?? this.id,
@@ -57,6 +62,7 @@ class ProductoModel {
       precio: precio ?? this.precio,
       cantidadPorPaca: cantidadPorPaca ?? this.cantidadPorPaca,
       imagenPath: imagenPath ?? this.imagenPath,
+      codigoBarras: codigoBarras ?? this.codigoBarras,
     );
   }
 }

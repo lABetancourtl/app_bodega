@@ -7,9 +7,12 @@ import 'package:app_bodega/app/view/prodcut/crear_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/crear_producto_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_prodcuto_page.dart';
-import 'package:dropdown_button2/dropdown_button2.dart'; // AÑADIR ESTA IMPORTACIÓN
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter/services.dart';
+import 'package:vibration/vibration.dart';
 
 // ============= PROVIDERS =============
 final categoriasProvider = FutureProvider<List<CategoriaModel>>((ref) async {
@@ -32,11 +35,13 @@ final categoriaSeleccionadaProvider = Provider<String?>((ref) {
   );
 });
 
-// Provider para productos por categoría específica (con family)
 final productosPorCategoriaProvider = FutureProvider.family<List<ProductoModel>, String>((ref, categoriaId) async {
   final dbHelper = DatabaseHelper();
   return await dbHelper.obtenerProductosPorCategoria(categoriaId);
 });
+
+// <CHANGE> Provider para resaltar producto encontrado por código de barras
+final productoResaltadoProvider = StateProvider<String?>((ref) => null);
 
 // ============= PÁGINA =============
 class ProductosPage extends ConsumerStatefulWidget {
@@ -67,6 +72,92 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
           (match) => '.',
     );
+  }
+
+  // <CHANGE> Método para escanear código de barras
+  void _escanearCodigoBarras(BuildContext context, List<CategoriaModel> categorias) async {
+    final codigoBarras = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const _EscanerCodigoBarrasPage(),
+      ),
+    );
+
+    if (codigoBarras != null && codigoBarras.isNotEmpty) {
+      _buscarProductoPorCodigoBarras(codigoBarras, categorias);
+    }
+  }
+
+  // <CHANGE> Método para buscar producto por código de barras
+  void _buscarProductoPorCodigoBarras(String codigoBarras, List<CategoriaModel> categorias) async {
+    final dbHelper = DatabaseHelper();
+
+    try {
+      final producto = await dbHelper.obtenerProductoPorCodigoBarras(codigoBarras);
+
+      if (producto != null) {
+        // Vibración de éxito
+        if (await Vibration.hasVibrator() ?? false) {
+          Vibration.vibrate(pattern: [0, 100, 50, 100], intensities: [0, 200, 0, 255]);
+        }
+        // Buscar el índice de la categoría del producto
+        final categoriaIndex = categorias.indexWhere((cat) => cat.id == producto.categoriaId);
+
+        if (categoriaIndex != -1) {
+          // Navegar a la categoría del producto
+          ref.read(categoriaIndexProvider.notifier).state = categoriaIndex;
+          _pageController.animateToPage(
+            categoriaIndex,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+
+          // Resaltar el producto encontrado
+          ref.read(productoResaltadoProvider.notifier).state = producto.id;
+
+          // Quitar el resaltado después de 2 segundos
+          Future.delayed(const Duration(milliseconds: 2000), () {
+            if (mounted) {
+              ref.read(productoResaltadoProvider.notifier).state = null;
+            }
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Producto encontrado: ${producto.nombre}'),
+                backgroundColor: Colors.black54,
+                duration: const Duration(milliseconds: 1300),
+              ),
+            );
+          }
+        }
+      } else {
+        // Vibración de error
+        if (await Vibration.hasVibrator() ?? false) {
+          Vibration.vibrate(pattern: [0, 300, 100, 300], intensities: [0, 128, 0, 128]);
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No se encontró producto con código: $codigoBarras'),
+              backgroundColor: Colors.black54,
+              duration: const Duration(milliseconds: 1300),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al buscar producto: $e'),
+            backgroundColor: Colors.black54,
+            duration: const Duration(milliseconds: 1300),
+          ),
+        );
+      }
+    }
   }
 
   Widget _construirImagenProducto(String? imagenPath) {
@@ -192,7 +283,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 await dbHelper.eliminarCategoria(categoria.id!);
                 ref.invalidate(categoriasProvider);
 
-                // Ajustar el índice si es necesario
                 final currentIndex = ref.read(categoriaIndexProvider);
                 if (currentIndex > 0) {
                   ref.read(categoriaIndexProvider.notifier).state = currentIndex - 1;
@@ -234,7 +324,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     if (nuevoProducto != null) {
       try {
         await dbHelper.insertarProducto(nuevoProducto);
-        // Invalidar el provider específico de la categoría
         ref.invalidate(productosPorCategoriaProvider(nuevoProducto.categoriaId));
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -381,6 +470,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     );
   }
 
+  // <CHANGE> Método modificado para incluir resaltado de producto
   Widget _construirListaProductos(List<ProductoModel> productos, List<CategoriaModel> categorias) {
     if (productos.isEmpty) {
       return Column(
@@ -404,50 +494,82 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: productos.length,
-      itemBuilder: (context, index) {
-        final producto = productos[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: ListTile(
-            leading: _construirImagenProducto(producto.imagenPath),
-            title: Text(
-              producto.nombre,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Sabor${producto.sabores.length > 1 ? 'es' : ''}: ${producto.sabores.join(', ')}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                Text(
-                  'Precio: \$${_formatearPrecio(producto.precio)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
+    return Consumer(
+      builder: (context, ref, child) {
+        final productoResaltado = ref.watch(productoResaltadoProvider);
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: productos.length,
+          itemBuilder: (context, index) {
+            final producto = productos[index];
+            final estaResaltado = productoResaltado == producto.id;
+
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: estaResaltado
+                    ? [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.6),
+                    blurRadius: 12,
+                    spreadRadius: 2,
                   ),
+                ]
+                    : null,
+              ),
+              child: Card(
+                elevation: estaResaltado ? 8 : 1,
+                color: estaResaltado ? Colors.green.shade50 : null,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: estaResaltado
+                      ? const BorderSide(color: Colors.green, width: 3)
+                      : BorderSide.none,
                 ),
-                if (producto.cantidadPorPaca != null)
-                  Text(
-                    'Cantidad por paca: ${producto.cantidadPorPaca}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  leading: _construirImagenProducto(producto.imagenPath),
+                  title: Text(
+                    producto.nombre,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-              ],
-            ),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              _mostrarOpcionesProducto(context, producto, categorias);
-            },
-            onLongPress: () => _verImagenProducto(context, producto),
-          ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sabor${producto.sabores.length > 1 ? 'es' : ''}: ${producto.sabores.join(', ')}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      Text(
+                        'Precio: \$${_formatearPrecio(producto.precio)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (producto.cantidadPorPaca != null)
+                        Text(
+                          'Cantidad por paca: ${producto.cantidadPorPaca}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                    ],
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    _mostrarOpcionesProducto(context, producto, categorias);
+                  },
+                  onLongPress: () => _verImagenProducto(context, producto),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -470,6 +592,17 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
         elevation: 1,
         backgroundColor: Colors.white,
         foregroundColor: Colors.blue[800],
+        // <CHANGE> Agregar icono de escáner en el AppBar
+        actions: [
+          categoriasAsync.maybeWhen(
+            data: (categorias) => IconButton(
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: 'Buscar por código de barras',
+              onPressed: () => _escanearCodigoBarras(context, categorias),
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
+        ],
       ),
       body: categoriasAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -497,7 +630,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
             );
           }
 
-          // Ajustar el índice si está fuera de rango
           if (categoriaIndex >= categorias.length) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ref.read(categoriaIndexProvider.notifier).state = 0;
@@ -507,7 +639,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
 
           return Column(
             children: [
-              // DROPDOWN DE CATEGORÍAS - NUEVO DISEÑO
               Container(
                 width: double.infinity,
                 margin: const EdgeInsets.all(16),
@@ -518,7 +649,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 ),
                 child: Row(
                   children: [
-                    // Dropdown principal
                     Expanded(
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton2<int>(
@@ -583,8 +713,8 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                             offset: const Offset(0, -4),
                             scrollbarTheme: ScrollbarThemeData(
                               radius: const Radius.circular(40),
-                              thickness: MaterialStateProperty.all(6),
-                              thumbVisibility: MaterialStateProperty.all(true),
+                              thickness: WidgetStateProperty.all(6),
+                              thumbVisibility: WidgetStateProperty.all(true),
                             ),
                           ),
                           menuItemStyleData: const MenuItemStyleData(
@@ -594,7 +724,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                         ),
                       ),
                     ),
-                    // Botón de opciones de categoría
                     Container(
                       height: 50,
                       decoration: BoxDecoration(
@@ -613,8 +742,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                   ],
                 ),
               ),
-
-              // PageView con las listas de productos
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
@@ -677,7 +804,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
       builder: (sheetContext) => SafeArea(
         child: Wrap(
           children: [
-            // Header con el nombre de la categoría
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -707,8 +833,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 ],
               ),
             ),
-
-            // EDITAR CATEGORÍA
             ListTile(
               leading: const Icon(Icons.edit,),
               title: const Text('Editar categoría'),
@@ -717,8 +841,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 _editarCategoria(context, categoria);
               },
             ),
-
-            // ELIMINAR CATEGORÍA
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text(
@@ -730,8 +852,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 _eliminarCategoria(context, categoria);
               },
             ),
-
-            // Espaciado inferior para mejor UX
             const SizedBox(height: 8),
           ],
         ),
@@ -775,8 +895,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 ],
               ),
             ),
-
-            // VER IMAGEN PRODUCTO
             ListTile(
               leading: const Icon(Icons.image),
               title: const Text('Ver imagen producto'),
@@ -785,8 +903,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 _verImagenProducto(context, producto);
               },
             ),
-
-            // EDITAR PRODUCTO
             ListTile(
               leading: const Icon(Icons.edit),
               title: const Text('Editar producto'),
@@ -825,7 +941,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 }
               },
             ),
-            // ELIMINAR PRODUCTO
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text('Eliminar producto', style: TextStyle(color: Colors.red)),
@@ -835,6 +950,429 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// <CHANGE> Clase del escáner de código de barras
+
+class _EscanerCodigoBarrasPage extends StatefulWidget {
+  const _EscanerCodigoBarrasPage();
+
+  @override
+  State<_EscanerCodigoBarrasPage> createState() => _EscanerCodigoBarrasPageState();
+}
+
+class _EscanerCodigoBarrasPageState extends State<_EscanerCodigoBarrasPage>
+    with SingleTickerProviderStateMixin {
+  MobileScannerController? cameraController;
+  bool _escaneado = false;
+  bool _torchOn = false;
+  bool _scannerActivo = true;
+
+  // Animación de línea de escaneo
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCamera();
+
+    // Configurar animación de línea de escaneo
+    _animationController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _animation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+  }
+
+  void _initializeCamera() {
+    cameraController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.normal, // Mejor balance entre velocidad y precisión
+      facing: CameraFacing.back,
+      formats: [
+        // Solo formatos comunes de productos
+        BarcodeFormat.ean13,
+        BarcodeFormat.ean8,
+        BarcodeFormat.upcA,
+        BarcodeFormat.upcE,
+        BarcodeFormat.code128,
+        BarcodeFormat.code39,
+        BarcodeFormat.code93,
+        BarcodeFormat.codabar,
+        BarcodeFormat.itf,
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    cameraController?.dispose();
+    super.dispose();
+  }
+
+  void _onDetect(BarcodeCapture capture) async {
+    if (_escaneado || !_scannerActivo) return;
+
+    final List<Barcode> barcodes = capture.barcodes;
+    for (final barcode in barcodes) {
+      if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+        setState(() {
+          _escaneado = true;
+        });
+
+        // Vibración suave al detectar código
+        await _vibrarDeteccion();
+
+        Navigator.pop(context, barcode.rawValue);
+        break;
+      }
+    }
+  }
+
+  void _toggleTorch() async {
+    await cameraController?.toggleTorch();
+    setState(() {
+      _torchOn = !_torchOn;
+    });
+  }
+
+  void _switchCamera() async {
+    await cameraController?.switchCamera();
+  }
+
+  void _toggleScanner() {
+    setState(() {
+      _scannerActivo = !_scannerActivo;
+    });
+    if (_scannerActivo) {
+      cameraController?.start();
+    } else {
+      cameraController?.stop();
+    }
+  }
+
+  // Método para ingresar código manualmente
+  void _ingresarCodigoManual() {
+    final TextEditingController codigoController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ingresar Código'),
+        content: TextField(
+          controller: codigoController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: 'Ej: 7701234567890',
+            labelText: 'Código de barras',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final codigo = codigoController.text.trim();
+              if (codigo.isNotEmpty) {
+                Navigator.pop(context); // Cerrar diálogo
+                Navigator.pop(this.context, codigo); // Retornar código
+              }
+            },
+            child: const Text('Buscar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Vibración de éxito (producto encontrado)
+  Future<void> _vibrarExito() async {
+    if (await Vibration.hasVibrator() ?? false) {
+      // Patrón: espera 0ms, vibra 100ms, espera 50ms, vibra 100ms
+      if (await Vibration.hasCustomVibrationsSupport() ?? false) {
+        Vibration.vibrate(
+          pattern: [0, 100, 50, 100],
+          intensities: [0, 200, 0, 255],
+        );
+      } else {
+        Vibration.vibrate(duration: 200);
+      }
+    }
+  }
+
+// Vibración de error (producto no encontrado)
+  Future<void> _vibrarError() async {
+    if (await Vibration.hasVibrator() ?? false) {
+      // Patrón largo para indicar error
+      if (await Vibration.hasCustomVibrationsSupport() ?? false) {
+        Vibration.vibrate(
+          pattern: [0, 300, 100, 300, 100, 300],
+          intensities: [0, 128, 0, 128, 0, 128],
+        );
+      } else {
+        Vibration.vibrate(duration: 500);
+      }
+    }
+  }
+
+// Vibración suave (código detectado)
+  Future<void> _vibrarDeteccion() async {
+    if (await Vibration.hasVibrator() ?? false) {
+      if (await Vibration.hasCustomVibrationsSupport() ?? false) {
+        Vibration.vibrate(duration: 70, amplitude: 128);
+      } else {
+        Vibration.vibrate(duration: 70);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Escanear Código'),
+        actions: [
+          // Botón para ingresar código manualmente
+          IconButton(
+            icon: const Icon(Icons.keyboard),
+            tooltip: 'Ingresar manualmente',
+            onPressed: _ingresarCodigoManual,
+          ),
+          // Botón para pausar/reanudar escáner
+          IconButton(
+            icon: Icon(_scannerActivo ? Icons.pause : Icons.play_arrow),
+            tooltip: _scannerActivo ? 'Pausar' : 'Reanudar',
+            onPressed: _toggleScanner,
+          ),
+          IconButton(
+            icon: Icon(_torchOn ? Icons.flash_on : Icons.flash_off),
+            tooltip: 'Flash',
+            onPressed: _toggleTorch,
+          ),
+          IconButton(
+            icon: const Icon(Icons.cameraswitch),
+            tooltip: 'Cambiar cámara',
+            onPressed: _switchCamera,
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // Escáner de cámara
+          if (cameraController != null)
+            MobileScanner(
+              controller: cameraController!,
+              onDetect: _onDetect,
+            ),
+
+          // Overlay oscuro con recorte transparente
+          ColorFiltered(
+            colorFilter: ColorFilter.mode(
+              Colors.black.withOpacity(0.5),
+              BlendMode.srcOut,
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.black,
+                    backgroundBlendMode: BlendMode.dstOut,
+                  ),
+                ),
+                Center(
+                  child: Container(
+                    width: 280,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Marco del área de escaneo
+          Center(
+            child: Container(
+              width: 280,
+              height: 150,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: _scannerActivo ? Colors.green : Colors.grey,
+                  width: 3,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(9),
+                child: AnimatedBuilder(
+                  animation: _animation,
+                  builder: (context, child) {
+                    return Stack(
+                      children: [
+                        // Línea de escaneo animada
+                        if (_scannerActivo)
+                          Positioned(
+                            top: _animation.value * 144,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              height: 3,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.green.withOpacity(0.8),
+                                    Colors.green,
+                                    Colors.green.withOpacity(0.8),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+
+          // Esquinas decorativas
+          Center(
+            child: SizedBox(
+              width: 280,
+              height: 150,
+              child: Stack(
+                children: [
+                  // Esquina superior izquierda
+                  Positioned(
+                    top: -2,
+                    left: -2,
+                    child: _buildCorner(true, true),
+                  ),
+                  // Esquina superior derecha
+                  Positioned(
+                    top: -2,
+                    right: -2,
+                    child: _buildCorner(true, false),
+                  ),
+                  // Esquina inferior izquierda
+                  Positioned(
+                    bottom: -2,
+                    left: -2,
+                    child: _buildCorner(false, true),
+                  ),
+                  // Esquina inferior derecha
+                  Positioned(
+                    bottom: -2,
+                    right: -2,
+                    child: _buildCorner(false, false),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Indicador de estado
+          Positioned(
+            top: 20,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _scannerActivo ? Colors.green : Colors.orange,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _scannerActivo ? 'Escaneando...' : 'Pausado',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Instrucciones
+          Positioned(
+            bottom: 100,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: const Text(
+                    'Coloca el código de barras dentro del recuadro',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      shadows: [
+                        Shadow(blurRadius: 10.0, color: Colors.black, offset: Offset(2.0, 2.0)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'O presiona el icono de teclado para ingresar manualmente',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 12,
+                    shadows: const [
+                      Shadow(blurRadius: 10.0, color: Colors.black, offset: Offset(2.0, 2.0)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCorner(bool isTop, bool isLeft) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        border: Border(
+          top: isTop
+              ? BorderSide(color: _scannerActivo ? Colors.green : Colors.grey, width: 4)
+              : BorderSide.none,
+          bottom: !isTop
+              ? BorderSide(color: _scannerActivo ? Colors.green : Colors.grey, width: 4)
+              : BorderSide.none,
+          left: isLeft
+              ? BorderSide(color: _scannerActivo ? Colors.green : Colors.grey, width: 4)
+              : BorderSide.none,
+          right: !isLeft
+              ? BorderSide(color: _scannerActivo ? Colors.green : Colors.grey, width: 4)
+              : BorderSide.none,
         ),
       ),
     );

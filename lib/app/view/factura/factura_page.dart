@@ -1,15 +1,13 @@
 import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
-import 'package:app_bodega/app/service/cache_manager.dart';
-import 'package:app_bodega/app/service/pdf_service.dart';
-import 'package:app_bodega/app/view/factura/crear_factura_page.dart';
+import 'package:app_bodega/app/model/cliente_model.dart';
+import 'package:app_bodega/app/view/factura/crear_factura_clientes_page.dart';
+import 'package:app_bodega/app/view/factura/crear_factura_limpia_page.dart';
 import 'package:app_bodega/app/view/factura/editar_factura_page.dart';
 import 'package:app_bodega/app/view/factura/resumen_productos__page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../service/esc_pos_service.dart';
 
 // ============= STATE NOTIFIER PARA FECHA =============
@@ -91,34 +89,6 @@ class FacturaPage extends ConsumerWidget {
     }
   }
 
-  // Future<void> _enviarPorWhatsApp(BuildContext context, FacturaModel factura) async {
-  //   try {
-  //     if (context.mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(
-  //           content: Text('Generando PDF y abriendo WhatsApp...'),
-  //           duration: Duration(seconds: 2),
-  //         ),
-  //       );
-  //     }
-  //
-  //     final pdfFile = await PdfService.generarPDF(factura);
-  //     final xFile = XFile(pdfFile.path, mimeType: 'application/pdf');
-  //
-  //     await Share.shareXFiles(
-  //       [xFile],
-  //       text: 'Factura de ${factura.nombreCliente}',
-  //       subject: 'Factura #${factura.id}',
-  //     );
-  //   } catch (e) {
-  //     if (context.mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text('Error al preparar PDF: $e')),
-  //       );
-  //     }
-  //   }
-  // }
-
   void _editarFactura(BuildContext context, WidgetRef ref, FacturaModel factura) async {
     await Navigator.push(
       context,
@@ -168,18 +138,6 @@ class FacturaPage extends ConsumerWidget {
       ),
     );
   }
-
-  // Future<void> _descargarFacturaPDF(BuildContext context, FacturaModel factura) async {
-  //   try {
-  //     await PdfService.generarYDescargarPDF(factura);
-  //   } catch (e) {
-  //     if (context.mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text('Error al descargar: $e')),
-  //       );
-  //     }
-  //   }
-  // }
 
   Future<void> _descargarFacturaPOS(BuildContext context, FacturaModel factura) async {
     try {
@@ -355,18 +313,34 @@ class FacturaPage extends ConsumerWidget {
   }
 
   void _mostrarMenuFlotante(BuildContext context, WidgetRef ref) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nueva Factura'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
           children: [
+            // Encabezado
+            Container(
+              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              child: const Text(
+                'Nueva Factura',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            // Factura a Clientes
             ListTile(
-              leading: const Icon(Icons.shopping_cart),
+              leading: const Icon(Icons.shopping_cart,),
               title: const Text('Factura a Clientes'),
+              subtitle: const Text('Cliente registrado en el sistema'),
               onTap: () async {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -376,16 +350,25 @@ class FacturaPage extends ConsumerWidget {
                 ref.invalidate(facturasProvider);
               },
             ),
+
+            // Factura Limpia
             ListTile(
-              leading: const Icon(Icons.cleaning_services),
-              title: const Text('Limpia'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Factura limpia')),
+              leading: const Icon(Icons.person_add_outlined,),
+              title: const Text('Factura Limpia'),
+              subtitle: const Text('Cliente ocasional sin registro'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CrearFacturaLimpiaPage(),
+                  ),
                 );
+                ref.invalidate(facturasProvider);
               },
             ),
+
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -638,9 +621,9 @@ class FacturaPage extends ConsumerWidget {
                   Text(
                     factura.direccionCliente,
                     style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: Colors.grey
+                        fontSize: 14,
+                        fontWeight: FontWeight.normal,
+                        color: Colors.grey
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -666,26 +649,6 @@ class FacturaPage extends ConsumerWidget {
                 _editarFactura(context, ref, factura);
               },
             ),
-
-            // // Enviar por WhatsApp
-            // ListTile(
-            //   leading: const Icon(Icons.chat),
-            //   title: const Text("Enviar por WhatsApp"),
-            //   onTap: () {
-            //     Navigator.pop(sheetContext);
-            //     _enviarPorWhatsApp(context, factura);
-            //   },
-            // ),
-
-            // // Descargar PDF
-            // ListTile(
-            //   leading: const Icon(Icons.download),
-            //   title: const Text("Descargar PDF"),
-            //   onTap: () {
-            //     Navigator.pop(sheetContext);
-            //     _descargarFacturaPDF(context, factura);
-            //   },
-            // ),
 
             ListTile(
               leading: const Icon(Icons.download),
@@ -713,5 +676,4 @@ class FacturaPage extends ConsumerWidget {
       ),
     );
   }
-
 }

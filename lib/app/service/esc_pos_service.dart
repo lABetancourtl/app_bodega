@@ -94,10 +94,10 @@ class EscPosService {
       ),
     ]);
 
-    bytes += generator.text(
-      'Hora: ${_formatearHora(factura.fecha)}',
-      styles: const PosStyles(align: PosAlign.right),
-    );
+    // bytes += generator.text(
+    //   'Hora: ${_formatearHora(factura.fecha)}',
+    //   styles: const PosStyles(align: PosAlign.right),
+    // );
 
     bytes += generator.hr(ch: '-');
 
@@ -243,17 +243,17 @@ class EscPosService {
       bytes += generator.emptyLines(1);
     }
 
-    // ==================== FIRMA ====================
-    bytes += generator.emptyLines(2);
-    bytes += generator.text(
-      '_________________________',
-      styles: const PosStyles(align: PosAlign.center),
-    );
-    bytes += generator.text(
-      'Firma del Cliente',
-      styles: const PosStyles(align: PosAlign.center),
-    );
-    bytes += generator.emptyLines(1);
+    // // ==================== FIRMA ====================
+    // bytes += generator.emptyLines(2);
+    // bytes += generator.text(
+    //   '_________________________',
+    //   styles: const PosStyles(align: PosAlign.center),
+    // );
+    // bytes += generator.text(
+    //   'Firma del Cliente',
+    //   styles: const PosStyles(align: PosAlign.center),
+    // );
+    // bytes += generator.emptyLines(1);
 
     // ==================== PIE DE PÁGINA ====================
     bytes += generator.hr(ch: '-');
@@ -497,29 +497,36 @@ class EscPosService {
                 pw.SizedBox(height: 8),
 
                 // ==================== NÚMERO Y FECHA ====================
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'No: ${factura.id ?? '0000'}',
-                      style: pw.TextStyle(
-                        fontSize: 10,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.Text(
-                      _formatearFecha(factura.fecha),
-                      style: const pw.TextStyle(fontSize: 10),
-                    ),
-                  ],
-                ),
-                pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Text(
-                    'Hora: ${_formatearHora(factura.fecha)}',
-                    style: const pw.TextStyle(fontSize: 10),
+                // pw.Row(
+                //   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                //   children: [
+                //     pw.Text(
+                //       'No: ${factura.id ?? '0000'}',
+                //       style: pw.TextStyle(
+                //         fontSize: 10,
+                //         fontWeight: pw.FontWeight.bold,
+                //       ),
+                //     ),
+                //     pw.Text(
+                //       _formatearFecha(factura.fecha),
+                //       style: const pw.TextStyle(fontSize: 10),
+                //     ),
+                //   ],
+                // ),
+                pw.Text(
+                  _formatearFecha(factura.fecha),
+                  style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
                   ),
                 ),
+                pw.Text (
+                  'No: ${factura.id ?? '0000'}',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                  ),
+                ),
+
                 pw.Divider(),
 
                 // ==================== INFORMACIÓN DEL CLIENTE ====================
@@ -599,13 +606,6 @@ class EscPosService {
                           ),
                         ],
                       ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(left: 20),
-                        child: pw.Text(
-                          '@\$${_formatearPrecio(item.precioUnitario)} c/u',
-                          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-                        ),
-                      ),
                       if (item.tieneSabores && item.cantidadPorSabor.isNotEmpty)
                         pw.Padding(
                           padding: const pw.EdgeInsets.only(left: 20),
@@ -614,9 +614,16 @@ class EscPosService {
                                 .where((e) => e.value > 0)
                                 .map((e) => '${e.key}(${e.value})')
                                 .join(', '),
-                            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                            style: const pw.TextStyle(fontSize: 8, ), //color: PdfColors.grey700
                           ),
                         ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(left: 20),
+                        child: pw.Text(
+                          '@\$${_formatearPrecio(item.precioUnitario)} c/u',
+                          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                        ),
+                      ),
                       pw.SizedBox(height: 4),
                     ],
                   );
@@ -672,27 +679,27 @@ class EscPosService {
                   pw.SizedBox(height: 8),
                 ],
 
-                // ==================== FIRMA ====================
-                pw.SizedBox(height: 16),
-                pw.Center(
-                  child: pw.Column(
-                    children: [
-                      pw.Container(
-                        width: 150,
-                        decoration: const pw.BoxDecoration(
-                          border: pw.Border(bottom: pw.BorderSide()),
-                        ),
-                        child: pw.SizedBox(height: 1),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text('Firma del Cliente', style: const pw.TextStyle(fontSize: 9)),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 8),
+                // // ==================== FIRMA ====================
+                // pw.SizedBox(height: 16),
+                // pw.Center(
+                //   child: pw.Column(
+                //     children: [
+                //       pw.Container(
+                //         width: 150,
+                //         decoration: const pw.BoxDecoration(
+                //           border: pw.Border(bottom: pw.BorderSide()),
+                //         ),
+                //         child: pw.SizedBox(height: 1),
+                //       ),
+                //       pw.SizedBox(height: 4),
+                //       pw.Text('Firma del Cliente', style: const pw.TextStyle(fontSize: 9)),
+                //     ],
+                //   ),
+                // ),
+                // pw.SizedBox(height: 8),
 
                 // ==================== PIE DE PÁGINA ====================
-                pw.Divider(),
+                // pw.Divider(),
                 pw.Center(
                   child: pw.Text(
                     'Gracias por su compra',
@@ -767,7 +774,7 @@ class EscPosService {
       _formatearFecha(factura.fecha),
       ancho,
     ));
-    buffer.writeln(_alinearDerecha('Hora: ${_formatearHora(factura.fecha)}', ancho));
+    // buffer.writeln(_alinearDerecha('Hora: ${_formatearHora(factura.fecha)}', ancho));
     buffer.writeln('-' * ancho);
 
     buffer.writeln('CLIENTE');
@@ -829,9 +836,9 @@ class EscPosService {
 
     buffer.writeln();
     buffer.writeln();
-    buffer.writeln(_centrar('_________________________', ancho));
-    buffer.writeln(_centrar('Firma del Cliente', ancho));
-    buffer.writeln();
+    // buffer.writeln(_centrar('_________________________', ancho));
+    // buffer.writeln(_centrar('Firma del Cliente', ancho));
+    // buffer.writeln();
     buffer.writeln('-' * ancho);
     buffer.writeln(_centrar('Gracias por su compra', ancho));
     buffer.writeln(_centrar('Novedades: 3105893020', ancho));

@@ -54,7 +54,7 @@ class DatabaseHelper {
     try {
       final doc = await _firestore
           .collection(clientesCol)
-          .doc(id)  // ✅ Usar .doc(id) directamente
+          .doc(id)
           .get();
 
       if (doc.exists) {
@@ -74,7 +74,7 @@ class DatabaseHelper {
 
       await _firestore
           .collection(clientesCol)
-          .doc(cliente.id)  // ✅ Usar el ID directamente
+          .doc(cliente.id)
           .update(cliente.toMap());
     } catch (e) {
       throw Exception('Error al actualizar cliente: $e');
@@ -85,7 +85,7 @@ class DatabaseHelper {
     try {
       await _firestore
           .collection(clientesCol)
-          .doc(id)  // ✅ Usar el ID directamente
+          .doc(id)
           .delete();
     } catch (e) {
       throw Exception('Error al eliminar cliente: $e');
@@ -163,6 +163,23 @@ class DatabaseHelper {
 
   // ============= MÉTODOS PARA PRODUCTOS =============
 
+  Future<ProductoModel?> obtenerProductoPorCodigoBarras(String codigoBarras) async {
+    try {
+      final snapshot = await _firestore
+          .collection(productosCol)
+          .where('codigoBarras', isEqualTo: codigoBarras)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        final doc = snapshot.docs.first;
+        return ProductoModel.fromMap(doc.data(), doc.id);
+      }
+      return null;
+    } catch (e) {
+      throw Exception('Error al obtener producto por código de barras: $e');
+    }
+  }
 
   Future<String> insertarProducto(ProductoModel producto) async {
     try {
@@ -372,8 +389,6 @@ class DatabaseHelper {
     }
   }
 
-// Reemplaza el método obtenerTodosProductos en database_helper.dart:
-
   Future<List<ProductoModel>> obtenerTodosProductos() async {
     try {
       final snapshot = await _firestore
@@ -390,7 +405,6 @@ class DatabaseHelper {
     }
   }
 
-  // Metodo para obtener las facturas de un cliente
   Future<List<FacturaModel>> obtenerFacturasPorCliente(String clienteId, {int limit = 3}) async {
     try {
       final snapshot = await _firestore
@@ -417,4 +431,6 @@ class DatabaseHelper {
       throw Exception('Error al obtener facturas del cliente: $e');
     }
   }
+
+
 }
