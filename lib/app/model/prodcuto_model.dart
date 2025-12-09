@@ -6,7 +6,8 @@ class ProductoModel {
   final double precio;
   final int? cantidadPorPaca;
   final String? imagenPath;
-  final String? codigoBarras;
+  final String? codigoBarras; // Código principal (deprecado pero mantenido por compatibilidad)
+  final Map<String, String>? codigosPorSabor; // ← NUEVO: Mapa de sabor -> código de barras
 
   ProductoModel({
     this.id,
@@ -17,6 +18,7 @@ class ProductoModel {
     this.cantidadPorPaca,
     this.imagenPath,
     this.codigoBarras,
+    this.codigosPorSabor, // ← NUEVO
   });
 
   Map<String, dynamic> toMap() {
@@ -28,6 +30,7 @@ class ProductoModel {
       'cantidadPorPaca': cantidadPorPaca,
       'imagenPath': imagenPath,
       'codigoBarras': codigoBarras,
+      'codigosPorSabor': codigosPorSabor, // ← NUEVO
     };
   }
 
@@ -41,6 +44,9 @@ class ProductoModel {
       cantidadPorPaca: map['cantidadPorPaca'] as int?,
       imagenPath: map['imagenPath'] as String?,
       codigoBarras: map['codigoBarras'] as String?,
+      codigosPorSabor: map['codigosPorSabor'] != null // ← NUEVO
+          ? Map<String, String>.from(map['codigosPorSabor'] as Map)
+          : null,
     );
   }
 
@@ -53,6 +59,7 @@ class ProductoModel {
     int? cantidadPorPaca,
     String? imagenPath,
     String? codigoBarras,
+    Map<String, String>? codigosPorSabor, // ← NUEVO
   }) {
     return ProductoModel(
       id: id ?? this.id,
@@ -63,6 +70,37 @@ class ProductoModel {
       cantidadPorPaca: cantidadPorPaca ?? this.cantidadPorPaca,
       imagenPath: imagenPath ?? this.imagenPath,
       codigoBarras: codigoBarras ?? this.codigoBarras,
+      codigosPorSabor: codigosPorSabor ?? this.codigosPorSabor, // ← NUEVO
     );
+  }
+
+  // ← NUEVO: Método helper para obtener todos los códigos de barras
+  List<String> obtenerTodosLosCodigos() {
+    final List<String> codigos = [];
+
+    // Agregar código principal si existe
+    if (codigoBarras != null && codigoBarras!.isNotEmpty) {
+      codigos.add(codigoBarras!);
+    }
+
+    // Agregar códigos por sabor si existen
+    if (codigosPorSabor != null) {
+      codigos.addAll(codigosPorSabor!.values);
+    }
+
+    return codigos;
+  }
+
+  // ← NUEVO: Método helper para obtener el sabor de un código
+  String? obtenerSaborPorCodigo(String codigo) {
+    if (codigosPorSabor == null) return null;
+
+    for (var entry in codigosPorSabor!.entries) {
+      if (entry.value == codigo) {
+        return entry.key;
+      }
+    }
+
+    return null;
   }
 }

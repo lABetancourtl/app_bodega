@@ -19,11 +19,11 @@ class MyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('es', 'ES'), // Español España
-        Locale('es', ''), // Español genérico
-        Locale('en', 'US'), // Inglés (fallback)
+        Locale('es', 'ES'),
+        Locale('es', ''),
+        Locale('en', 'US'),
       ],
-      locale: const Locale('es', 'ES'), // Idioma por defecto
+      locale: const Locale('es', 'ES'),
       home: const HomePage(),
     );
   }

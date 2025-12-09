@@ -5,6 +5,7 @@ import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:app_bodega/app/view/barcode/barcode_scaner_page.dart';
 
 import '../../service/cloudinary_helper.dart';
 
@@ -27,10 +28,12 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _precioController = TextEditingController();
   final TextEditingController _cantidadPacaController = TextEditingController();
-  final TextEditingController _codigoBarrasController = TextEditingController();
 
   CategoriaModel? _categoriaSeleccionada;
   List<TextEditingController> _saborControllers = [TextEditingController()];
+
+  // ← NUEVO: Mapa para guardar códigos de barras por sabor
+  Map<String, String> _codigosPorSabor = {};
 
   @override
   void initState() {
@@ -45,7 +48,6 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
     _nombreController.dispose();
     _precioController.dispose();
     _cantidadPacaController.dispose();
-    _codigoBarrasController.dispose();
     for (var controller in _saborControllers) {
       controller.dispose();
     }
@@ -59,6 +61,11 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
   }
 
   void _eliminarSabor(int index) {
+    final sabor = _saborControllers[index].text.trim();
+    if (sabor.isNotEmpty && _codigosPorSabor.containsKey(sabor)) {
+      _codigosPorSabor.remove(sabor);
+    }
+
     setState(() {
       _saborControllers[index].dispose();
       _saborControllers.removeAt(index);
@@ -146,7 +153,8 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
     );
   }
 
-  Future<void> _escanearCodigoBarras() async {
+  // ← NUEVO: Escanear código para un sabor específico
+  Future<void> _escanearCodigoParaSabor(String sabor) async {
     final resultado = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -156,15 +164,171 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
 
     if (resultado != null && resultado is String) {
       setState(() {
-        _codigoBarrasController.text = resultado;
+        _codigosPorSabor[sabor] = resultado;
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Código escaneado: $resultado')),
+          SnackBar(content: Text('Código "$resultado" asignado a sabor "$sabor"')),
         );
       }
     }
+  }
+
+  // ← NUEVO: Mostrar diálogo para gestionar códigos de barras
+  void _gestionarCodigosBarras() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.qr_code, color: Colors.blue),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Códigos de Barras por Sabor',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 8),
+
+                    if (_saborControllers.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'Primero agrega sabores al producto',
+                          style: TextStyle(color: Colors.grey),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+
+                    ..._saborControllers.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final controller = entry.value;
+                      final sabor = controller.text.trim();
+
+                      if (sabor.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
+                      final tieneCodigo = _codigosPorSabor.containsKey(sabor);
+                      final codigo = _codigosPorSabor[sabor];
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: tieneCodigo ? Colors.green : Colors.grey,
+                            child: Icon(
+                              tieneCodigo ? Icons.check : Icons.qr_code_scanner,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            sabor,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            tieneCodigo
+                                ? 'Código: $codigo'
+                                : 'Sin código asignado',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: tieneCodigo ? Colors.green : Colors.grey,
+                            ),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  tieneCodigo ? Icons.edit : Icons.add_a_photo,
+                                  color: Colors.blue,
+                                ),
+                                onPressed: () async {
+                                  Navigator.pop(context);
+                                  await _escanearCodigoParaSabor(sabor);
+                                  _gestionarCodigosBarras();
+                                },
+                                tooltip: tieneCodigo ? 'Cambiar código' : 'Escanear código',
+                              ),
+                              if (tieneCodigo)
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () {
+                                    setModalState(() {
+                                      _codigosPorSabor.remove(sabor);
+                                    });
+                                    setState(() {});
+                                  },
+                                  tooltip: 'Eliminar código',
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+
+                    const SizedBox(height: 16),
+
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Asigna un código de barras único a cada sabor del producto',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _guardarProducto() async {
@@ -206,6 +370,14 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
           .where((sabor) => sabor.isNotEmpty)
           .toList();
 
+      // Limpiar códigos de sabores que ya no existen
+      final Map<String, String> codigosFinales = {};
+      for (var sabor in sabores) {
+        if (_codigosPorSabor.containsKey(sabor)) {
+          codigosFinales[sabor] = _codigosPorSabor[sabor]!;
+        }
+      }
+
       final nuevoProducto = ProductoModel(
         nombre: _nombreController.text,
         categoriaId: _categoriaSeleccionada!.id!,
@@ -215,9 +387,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
             ? null
             : int.parse(_cantidadPacaController.text),
         imagenPath: imagenUrl,
-        codigoBarras: _codigoBarrasController.text.isEmpty
-            ? null
-            : _codigoBarrasController.text,
+        codigosPorSabor: codigosFinales.isEmpty ? null : codigosFinales, // ← NUEVO
       );
 
       if (mounted) {
@@ -321,26 +491,6 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
               ),
               const SizedBox(height: 16),
 
-              // Código de Barras
-              TextFormField(
-                controller: _codigoBarrasController,
-                decoration: InputDecoration(
-                  labelText: 'Código de Barras (Opcional)',
-                  hintText: 'Ej: 7501234567890',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.qr_code_scanner),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.camera_alt, color: Colors.blue),
-                    onPressed: _escanearCodigoBarras,
-                    tooltip: 'Escanear código de barras',
-                  ),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-
               // Precio
               TextFormField(
                 controller: _precioController,
@@ -427,6 +577,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
+                            onChanged: (_) => setState(() {}),
                           ),
                         ),
                         if (_saborControllers.length > 1)
@@ -439,6 +590,43 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
                   );
                 },
               ),
+
+              // ← NUEVO: Botón para gestionar códigos de barras
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _gestionarCodigosBarras,
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Códigos de Barras por Sabor'),
+                      if (_codigosPorSabor.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${_codigosPorSabor.length}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                    side: const BorderSide(color: Colors.blue, width: 2),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 32),
 
               // Botón Guardar
@@ -462,209 +650,4 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
       ),
     );
   }
-}
-
-// ============= PÁGINA DE ESCÁNER DE CÓDIGO DE BARRAS =============
-class BarcodeScannerPage extends StatefulWidget {
-  const BarcodeScannerPage({super.key});
-
-  @override
-  State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
-}
-
-class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
-  MobileScannerController cameraController = MobileScannerController();
-  bool _isScanning = true;
-  bool _torchOn = false;
-
-  @override
-  void dispose() {
-    cameraController.dispose();
-    super.dispose();
-  }
-
-  void _onBarcodeDetect(BarcodeCapture capture) {
-    if (!_isScanning) return;
-
-    final List<Barcode> barcodes = capture.barcodes;
-
-    if (barcodes.isNotEmpty) {
-      final String? code = barcodes.first.rawValue;
-
-      if (code != null && code.isNotEmpty) {
-        setState(() {
-          _isScanning = false;
-        });
-
-        Navigator.pop(context, code);
-      }
-    }
-  }
-
-  void _toggleTorch() {
-    setState(() {
-      _torchOn = !_torchOn;
-    });
-    cameraController.toggleTorch();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Escanear Código de Barras'),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _torchOn ? Icons.flash_on : Icons.flash_off,
-              color: _torchOn ? Colors.yellow : Colors.grey,
-            ),
-            onPressed: _toggleTorch,
-          ),
-          IconButton(
-            icon: const Icon(Icons.flip_camera_ios),
-            onPressed: () => cameraController.switchCamera(),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          // Cámara del escáner
-          MobileScanner(
-            controller: cameraController,
-            onDetect: _onBarcodeDetect,
-          ),
-
-          // Overlay con guía visual
-          CustomPaint(
-            painter: ScannerOverlay(),
-            child: Container(),
-          ),
-
-          // Instrucciones
-          Positioned(
-            bottom: 100,
-            left: 0,
-            right: 0,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 32),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Text(
-                'Coloca el código de barras dentro del marco',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============= OVERLAY VISUAL PARA EL ESCÁNER =============
-class ScannerOverlay extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.5)
-      ..style = PaintingStyle.fill;
-
-    final double scanAreaSize = size.width * 0.7;
-    final double left = (size.width - scanAreaSize) / 2;
-    final double top = (size.height - scanAreaSize) / 2;
-
-    // Dibujar overlay oscuro excepto en el área de escaneo
-    canvas.drawPath(
-      Path()
-        ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-        ..addRRect(RRect.fromRectAndRadius(
-          Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize),
-          const Radius.circular(12),
-        ))
-        ..fillType = PathFillType.evenOdd,
-      paint,
-    );
-
-    // Dibujar marco del área de escaneo
-    final borderPaint = Paint()
-      ..color = Colors.blue
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize),
-        const Radius.circular(12),
-      ),
-      borderPaint,
-    );
-
-    // Dibujar esquinas decorativas
-    final cornerPaint = Paint()
-      ..color = Colors.blue
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6;
-
-    final cornerLength = 40.0;
-
-    // Esquina superior izquierda
-    canvas.drawLine(
-      Offset(left, top),
-      Offset(left + cornerLength, top),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      Offset(left, top),
-      Offset(left, top + cornerLength),
-      cornerPaint,
-    );
-
-    // Esquina superior derecha
-    canvas.drawLine(
-      Offset(left + scanAreaSize, top),
-      Offset(left + scanAreaSize - cornerLength, top),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      Offset(left + scanAreaSize, top),
-      Offset(left + scanAreaSize, top + cornerLength),
-      cornerPaint,
-    );
-
-    // Esquina inferior izquierda
-    canvas.drawLine(
-      Offset(left, top + scanAreaSize),
-      Offset(left + cornerLength, top + scanAreaSize),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      Offset(left, top + scanAreaSize),
-      Offset(left, top + scanAreaSize - cornerLength),
-      cornerPaint,
-    );
-
-    // Esquina inferior derecha
-    canvas.drawLine(
-      Offset(left + scanAreaSize, top + scanAreaSize),
-      Offset(left + scanAreaSize - cornerLength, top + scanAreaSize),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      Offset(left + scanAreaSize, top + scanAreaSize),
-      Offset(left + scanAreaSize, top + scanAreaSize - cornerLength),
-      cornerPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

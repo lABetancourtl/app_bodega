@@ -8,6 +8,7 @@ import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:app_bodega/app/service/location_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../widgets/cliente_pulse_market.dart';
 import '../../widgets/pulse_marker.dart';
@@ -119,6 +120,82 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
         setState(() => _cargandoRuta = false);
       }
     }
+  }
+
+  // NUEVA FUNCIÓN: Navegar al cliente
+  Future<void> _navegarACliente() async {
+    if (widget.cliente.latitud == null || widget.cliente.longitud == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Este cliente no tiene ubicación')),
+      );
+      return;
+    }
+
+    // Mostrar opciones de navegación
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Navegar a ${widget.cliente.nombreNegocio}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.map),
+              title: const Text('Google Maps'),
+              onTap: () async {
+                Navigator.pop(context);
+                final url = Uri.parse(
+                  'https://www.google.com/maps/dir/?api=1&destination=${widget.cliente.latitud},${widget.cliente.longitud}',
+                );
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('No se pudo abrir Google Maps'),
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.navigation, ),
+              title: const Text('Waze'),
+              onTap: () async {
+                Navigator.pop(context);
+                final url = Uri.parse(
+                  'https://waze.com/ul?ll=${widget.cliente.latitud},${widget.cliente.longitud}&navigate=yes',
+                );
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('No se pudo abrir Waze'),
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   double? _calcularDistancia() {
@@ -283,9 +360,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
               onPressed: () {
                 setState(() {
                   _seguirUbicacion = !_seguirUbicacion;
-                  // if (_seguirUbicacion && _miUbicacion != null) {
-                  //   _mapController.move(_miUbicacion!, _mapController.camera.zoom);
-                  // }
                 });
               },
             ),
@@ -349,9 +423,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
             ),
             children: [
               TileLayer(
-                // urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', //Estilo oscuro
-                // urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', //Estilo claro/minimalista
-                urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', //Estilo Voyager
+                urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                 subdomains: const ['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'com.bodega.app_bodega',
                 maxZoom: 19,
@@ -499,29 +571,9 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                 ],
               ),
 
-              // Mostrar distancia si está disponible
-              if (distancia != null && _mostrarMiUbicacion) ...[
-                Row(
-                  // children: [
-                  //   Icon(Icons.straighten, size: 16, color: Colors.grey[600]),
-                  //   const SizedBox(width: 8),
-                  //   Expanded(
-                  //     child: Text(
-                  //       'Distancia en línea recta: ${distancia < 1000 ? "${distancia.toStringAsFixed(0)} m" : "${(distancia / 1000).toStringAsFixed(2)} km"}',
-                  //       style: TextStyle(
-                  //         fontSize: 13,
-                  //         color: Colors.grey[700],
-                  //         fontWeight: FontWeight.w500,
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ],
-                ),
-                const SizedBox(height: 4),
-              ],
-
               // Muestra distancia de la ruta real
               if (_distanciaRuta != null && _mostrarRuta && _mostrarMiUbicacion) ...[
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Icon(Icons.directions_car, size: 16, color: Colors.grey[600]),
@@ -538,11 +590,11 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
               ],
 
               // Mostrar tiempo estimado
               if (_duracionRuta != null && _mostrarRuta && _mostrarMiUbicacion) ...[
+                const SizedBox(height: 4),
                 Row(
                   children: [
                     Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
@@ -559,9 +611,9 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
               ],
 
+              const SizedBox(height: 8),
               Text(
                 'Coordenadas: ${widget.cliente.latitud?.toStringAsFixed(6)}, ${widget.cliente.longitud?.toStringAsFixed(6)}',
                 style: TextStyle(
@@ -597,6 +649,22 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                   ],
                 ),
               ],
+
+              // NUEVO: Botón de navegación
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _navegarACliente,
+                  icon: const Icon(Icons.directions),
+                  label: const Text('Navegar a este lugar'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
             ],
           ),
         ),

@@ -36,7 +36,7 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
     try {
       final facturasObtenidas = await _dbHelper.obtenerFacturasPorCliente(
         widget.cliente.id!,
-        limit: 3,
+        // limit: 3,
       );
 
       if (mounted) {

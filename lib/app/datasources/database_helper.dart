@@ -163,9 +163,11 @@ class DatabaseHelper {
 
   // ============= MÉTODOS PARA PRODUCTOS =============
 
+  // ← MÉTODO ACTUALIZADO: Busca código tanto en codigoBarras como en codigosPorSabor
   Future<ProductoModel?> obtenerProductoPorCodigoBarras(String codigoBarras) async {
     try {
-      final snapshot = await _firestore
+      // 1. Primero buscar en el campo codigoBarras principal
+      var snapshot = await _firestore
           .collection(productosCol)
           .where('codigoBarras', isEqualTo: codigoBarras)
           .limit(1)
@@ -175,9 +177,67 @@ class DatabaseHelper {
         final doc = snapshot.docs.first;
         return ProductoModel.fromMap(doc.data(), doc.id);
       }
+
+      // 2. Si no se encontró, buscar en codigosPorSabor
+      // Nota: Firestore no puede buscar directamente dentro de valores de mapas,
+      // por lo que obtenemos todos los productos y buscamos en memoria
+      final todosLosProductos = await _firestore
+          .collection(productosCol)
+          .get();
+
+      for (var doc in todosLosProductos.docs) {
+        final data = doc.data();
+
+        // Verificar si tiene el campo codigosPorSabor
+        if (data['codigosPorSabor'] != null) {
+          final codigosPorSabor = Map<String, dynamic>.from(data['codigosPorSabor']);
+
+          // Buscar si algún código coincide
+          for (var codigo in codigosPorSabor.values) {
+            if (codigo == codigoBarras) {
+              return ProductoModel.fromMap(data, doc.id);
+            }
+          }
+        }
+      }
+
       return null;
     } catch (e) {
+      print('Error al obtener producto por código de barras: $e');
       throw Exception('Error al obtener producto por código de barras: $e');
+    }
+  }
+
+  // ← NUEVO: Método alternativo más explícito
+  Future<ProductoModel?> buscarProductoPorCodigoBarras(String codigoBarras) async {
+    return await obtenerProductoPorCodigoBarras(codigoBarras);
+  }
+
+  // ← NUEVO: Obtener el sabor asociado a un código de barras específico
+  Future<String?> obtenerSaborPorCodigoBarras(String codigoBarras) async {
+    try {
+      final producto = await obtenerProductoPorCodigoBarras(codigoBarras);
+
+      if (producto == null) return null;
+
+      // Si es el código principal y solo hay un sabor, retornar ese sabor
+      if (producto.codigoBarras == codigoBarras && producto.sabores.length == 1) {
+        return producto.sabores[0];
+      }
+
+      // Buscar en codigosPorSabor
+      if (producto.codigosPorSabor != null) {
+        for (var entry in producto.codigosPorSabor!.entries) {
+          if (entry.value == codigoBarras) {
+            return entry.key; // Retornar el sabor
+          }
+        }
+      }
+
+      return null;
+    } catch (e) {
+      print('Error al obtener sabor por código de barras: $e');
+      return null;
     }
   }
 
@@ -431,6 +491,4 @@ class DatabaseHelper {
       throw Exception('Error al obtener facturas del cliente: $e');
     }
   }
-
-
 }

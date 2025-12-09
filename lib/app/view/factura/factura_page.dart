@@ -336,7 +336,7 @@ class FacturaPage extends ConsumerWidget {
 
             // Factura a Clientes
             ListTile(
-              leading: const Icon(Icons.shopping_cart,),
+              leading: const Icon(Icons.shopping_cart),
               title: const Text('Factura a Clientes'),
               subtitle: const Text('Cliente registrado en el sistema'),
               onTap: () async {
@@ -353,7 +353,7 @@ class FacturaPage extends ConsumerWidget {
 
             // Factura Limpia
             ListTile(
-              leading: const Icon(Icons.person_add_outlined,),
+              leading: const Icon(Icons.person_add_outlined),
               title: const Text('Factura Limpia'),
               subtitle: const Text('Cliente ocasional sin registro'),
               onTap: () async {
@@ -412,6 +412,11 @@ class FacturaPage extends ConsumerWidget {
               );
             },
             tooltip: 'Ver resumen de productos',
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => _mostrarMenuFlotante(context, ref),
+            tooltip: 'Nueva factura',
           ),
         ],
       ),
@@ -588,14 +593,11 @@ class FacturaPage extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _mostrarMenuFlotante(context, ref),
-        child: const Icon(Icons.add),
-      ),
+      // ← ELIMINADO: floatingActionButton
     );
   }
 
-  void _mostrarOpcionesFactura(BuildContext context, WidgetRef ref, FacturaModel factura,) {
+  void _mostrarOpcionesFactura(BuildContext context, WidgetRef ref, FacturaModel factura) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -623,8 +625,7 @@ class FacturaPage extends ConsumerWidget {
                     style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.normal,
-                        color: Colors.grey
-                    ),
+                        color: Colors.grey),
                   ),
                   const SizedBox(height: 6),
                   Text(

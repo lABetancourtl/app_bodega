@@ -55,7 +55,13 @@ class _EditarClientePageState extends State<EditarClientePage> {
 
     try {
       final locationService = LocationService();
-      final position = await locationService.obtenerUbicacionActual();
+      final position = await locationService.obtenerUbicacionPrecisa(
+        onProgress: (accuracy) {
+          print('Precisión actual: ${accuracy.toStringAsFixed(1)}m');
+        },
+        precisionObjetivo: 8.0, // metros
+        timeout: const Duration(seconds: 15),
+      );
 
       if (position != null) {
         setState(() {

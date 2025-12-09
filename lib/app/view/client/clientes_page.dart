@@ -565,7 +565,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                   ),
                 ),
                 Text(
-                  'Ruta: ${cliente.ruta?.toString().split('.').last.toUpperCase() ?? 'Sin ruta'}',
+                cliente.ruta?.toString().split('.').last.toUpperCase() ?? 'Sin ruta',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Colors.blue,
@@ -626,6 +626,43 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
             tooltip: 'Ver todos en mapa',
             onPressed: _abrirMapaClientes,
           ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () async {
+              final nuevoCliente = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CrearClientePage()),
+              );
+
+              if (nuevoCliente != null) {
+                try {
+                  await dbHelper.insertarCliente(nuevoCliente);
+                  ref.invalidate(clientesProvider);
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Cliente ${nuevoCliente.nombre} agregado'),
+                        backgroundColor: Colors.black54,
+                        duration: const Duration(milliseconds: 1300),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.black54,
+                        duration: const Duration(milliseconds: 1300),
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+          )
+
         ],
       ),
       body: Column(
@@ -781,44 +818,44 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final nuevoCliente = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CrearClientePage()),
-          );
-
-          if (nuevoCliente != null) {
-            try {
-              await dbHelper.insertarCliente(nuevoCliente);
-              ref.invalidate(clientesProvider);
-
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Cliente ${nuevoCliente.nombre} agregado'),
-                    backgroundColor: Colors.black54,
-                    duration: const Duration(milliseconds: 1300),
-                  ),
-                );
-              }
-            } catch (e) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: Colors.black54,
-                      duration: const Duration(milliseconds: 1300),
-                    )
-                );
-              }
-            }
-          }
-        },
-        child: const Icon(Icons.add),
-      ),
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: () async {
+      //     final nuevoCliente = await Navigator.push(
+      //       context,
+      //       MaterialPageRoute(builder: (context) => const CrearClientePage()),
+      //     );
+      //
+      //     if (nuevoCliente != null) {
+      //       try {
+      //         await dbHelper.insertarCliente(nuevoCliente);
+      //         ref.invalidate(clientesProvider);
+      //
+      //         if (context.mounted) {
+      //           ScaffoldMessenger.of(context).showSnackBar(
+      //             SnackBar(
+      //               content: Text('Cliente ${nuevoCliente.nombre} agregado'),
+      //               backgroundColor: Colors.black54,
+      //               duration: const Duration(milliseconds: 1300),
+      //             ),
+      //           );
+      //         }
+      //       } catch (e) {
+      //         if (context.mounted) {
+      //           ScaffoldMessenger.of(
+      //             context,
+      //           ).showSnackBar(
+      //               SnackBar(
+      //                 content: Text('Error: $e'),
+      //                 backgroundColor: Colors.black54,
+      //                 duration: const Duration(milliseconds: 1300),
+      //               )
+      //           );
+      //         }
+      //       }
+      //     }
+      //   },
+      //   child: const Icon(Icons.add),
+      // ),
     );
   }
 }

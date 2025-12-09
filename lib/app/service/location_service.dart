@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 
 class LocationService {
@@ -9,7 +10,8 @@ class LocationService {
 
   LocationService._internal();
 
-  /// Obtener ubicación actual con configuración optimizada
+  /// <CHANGE> Obtener ubicación con MÁXIMA precisión posible
+  /// Toma múltiples lecturas y devuelve la más precisa
   Future<Position?> obtenerUbicacionActual() async {
     try {
       // Verificar si el servicio de ubicación está habilitado
@@ -35,16 +37,129 @@ class LocationService {
         return null;
       }
 
-      // Obtener ubicación con configuración mejorada
-      return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 0, // Sin caché, siempre ubicación fresca
-          timeLimit: Duration(seconds: 15), // Timeout de 15 segundos
-        ),
-      );
+      // <CHANGE> Obtener múltiples lecturas y seleccionar la más precisa
+      Position? mejorPosicion;
+      const int maxIntentos = 3;
+      const double precisionAceptable = 10.0; // metros
+
+      for (int i = 0; i < maxIntentos; i++) {
+        try {
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: AndroidSettings(
+              accuracy: LocationAccuracy.best, // <CHANGE> Máxima precisión
+              distanceFilter: 0,
+              forceLocationManager: false,
+              intervalDuration: const Duration(milliseconds: 500),
+              useMSLAltitude: false,
+            ),
+          ).timeout(const Duration(seconds: 10));
+
+          print('[LocationService] Lectura ${i + 1}: accuracy=${position.accuracy}m');
+
+          // Si es la primera lectura o es más precisa que la anterior
+          if (mejorPosicion == null || position.accuracy < mejorPosicion.accuracy) {
+            mejorPosicion = position;
+          }
+
+          // Si ya tenemos una precisión aceptable, salir del loop
+          if (position.accuracy <= precisionAceptable) {
+            print('[LocationService] Precisión aceptable alcanzada: ${position.accuracy}m');
+            break;
+          }
+
+          // Esperar un poco antes de la siguiente lectura
+          if (i < maxIntentos - 1) {
+            await Future.delayed(const Duration(milliseconds: 800));
+          }
+        } catch (e) {
+          print('[LocationService] Error en lectura ${i + 1}: $e');
+        }
+      }
+
+      if (mejorPosicion != null) {
+        print('[LocationService] Mejor ubicación: ${mejorPosicion.latitude}, ${mejorPosicion.longitude} (±${mejorPosicion.accuracy.toStringAsFixed(1)}m)');
+      }
+
+      return mejorPosicion;
     } catch (e) {
       print('[LocationService] Error obteniendo ubicación: $e');
+      return null;
+    }
+  }
+
+  /// <CHANGE> Nueva función para obtener ubicación de alta precisión con callback de progreso
+  Future<Position?> obtenerUbicacionPrecisa({
+    Function(double accuracy)? onProgress,
+    double precisionObjetivo = 8.0, // metros
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return null;
+      }
+      if (permission == LocationPermission.deniedForever) return null;
+
+      Position? mejorPosicion;
+      final startTime = DateTime.now();
+
+      // Usar stream para obtener actualizaciones continuas hasta alcanzar precisión deseada
+      final completer = Completer<Position?>();
+
+      final stream = Geolocator.getPositionStream(
+        locationSettings: AndroidSettings(
+          accuracy: LocationAccuracy.best,
+          distanceFilter: 0,
+          forceLocationManager: false,
+          intervalDuration: const Duration(milliseconds: 500),
+        ),
+      );
+
+      StreamSubscription<Position>? subscription;
+
+      subscription = stream.listen(
+            (position) {
+          final elapsed = DateTime.now().difference(startTime);
+
+          onProgress?.call(position.accuracy);
+
+          if (mejorPosicion == null || position.accuracy < mejorPosicion!.accuracy) {
+            mejorPosicion = position;
+            print('[LocationService] Nueva mejor precisión: ${position.accuracy.toStringAsFixed(1)}m');
+          }
+
+          // Si alcanzamos la precisión objetivo o se acabó el tiempo
+          if (position.accuracy <= precisionObjetivo || elapsed >= timeout) {
+            subscription?.cancel();
+            if (!completer.isCompleted) {
+              completer.complete(mejorPosicion);
+            }
+          }
+        },
+        onError: (error) {
+          print('[LocationService] Error en stream: $error');
+          subscription?.cancel();
+          if (!completer.isCompleted) {
+            completer.complete(mejorPosicion);
+          }
+        },
+      );
+
+      // Timeout de seguridad
+      Future.delayed(timeout, () {
+        subscription?.cancel();
+        if (!completer.isCompleted) {
+          completer.complete(mejorPosicion);
+        }
+      });
+
+      return completer.future;
+    } catch (e) {
+      print('[LocationService] Error: $e');
       return null;
     }
   }
@@ -59,16 +174,17 @@ class LocationService {
     }
   }
 
-  /// Stream de ubicación en tiempo real para seguimiento
+  /// <CHANGE> Stream de ubicación con máxima precisión para seguimiento en tiempo real
   Stream<Position> obtenerStreamUbicacion({
-    LocationAccuracy accuracy = LocationAccuracy.high,
-    int distanceFilter = 10, // Actualizar cada 10 metros
+    LocationAccuracy accuracy = LocationAccuracy.best,
+    int distanceFilter = 5, // <CHANGE> Actualizar cada 5 metros para más precisión
   }) {
     return Geolocator.getPositionStream(
-      locationSettings: LocationSettings(
+      locationSettings: AndroidSettings(
         accuracy: accuracy,
         distanceFilter: distanceFilter,
-        timeLimit: const Duration(seconds: 10),
+        forceLocationManager: false,
+        intervalDuration: const Duration(seconds: 1),
       ),
     );
   }
