@@ -4,6 +4,21 @@ import 'package:app_bodega/app/view/client/selector_ubicacion_mapa.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+// ============= COLORES DEL TEMA =============
+class AppColors {
+  static const Color primary = Color(0xFF1E3A5F);
+  static const Color primaryLight = Color(0xFF2E5077);
+  static const Color accent = Color(0xFF00B894);
+  static const Color accentLight = Color(0xFFE8F8F5);
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color error = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+}
+
 class EditarClientePage extends StatefulWidget {
   final ClienteModel cliente;
 
@@ -50,6 +65,29 @@ class _EditarClientePageState extends State<EditarClientePage> {
     super.dispose();
   }
 
+  void _mostrarSnackBar(String mensaje, {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isSuccess ? Icons.check_circle : (isError ? Icons.error : Icons.info),
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(mensaje)),
+          ],
+        ),
+        backgroundColor: isSuccess ? AppColors.accent : (isError ? AppColors.error : AppColors.primary),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(milliseconds: 2000),
+      ),
+    );
+  }
+
   Future<void> _capturarUbicacion() async {
     setState(() => _cargandoUbicacion = true);
 
@@ -59,8 +97,8 @@ class _EditarClientePageState extends State<EditarClientePage> {
         onProgress: (accuracy) {
           print('Precisión actual: ${accuracy.toStringAsFixed(1)}m');
         },
-        precisionObjetivo: 8.0, // metros
-        timeout: const Duration(seconds: 15),
+        precisionObjetivo: 8.0,
+        timeout: const Duration(seconds: 5),
       );
 
       if (position != null) {
@@ -70,36 +108,19 @@ class _EditarClientePageState extends State<EditarClientePage> {
         });
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Ubicación capturada: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',
-              ),
-              backgroundColor: Colors.black54,
-              duration: Duration(milliseconds: 1300),
-            ),
+          _mostrarSnackBar(
+            'Ubicación capturada: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',
+            isSuccess: true,
           );
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No se pudo obtener la ubicación'),
-              backgroundColor: Colors.black54,
-              duration: Duration(milliseconds: 1300),
-            ),
-          );
+          _mostrarSnackBar('No se pudo obtener la ubicación', isError: true);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.black54,
-            duration: Duration(milliseconds: 1300),
-          ),
-        );
+        _mostrarSnackBar('Error: $e', isError: true);
       }
     } finally {
       setState(() => _cargandoUbicacion = false);
@@ -123,13 +144,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
         _longitud = resultado['longitud'];
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ubicación seleccionada desde el mapa'),
-          backgroundColor: Colors.black54,
-          duration: Duration(milliseconds: 1300),
-        ),
-      );
+      _mostrarSnackBar('Ubicación seleccionada desde el mapa', isSuccess: true);
     }
   }
 
@@ -139,13 +154,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
       _longitud = null;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Ubicación eliminada'),
-        backgroundColor: Colors.black54,
-        duration: Duration(milliseconds: 1300),
-      ),
-    );
+    _mostrarSnackBar('Ubicación eliminada', isSuccess: true);
   }
 
   void _guardarCambios() {
@@ -166,26 +175,110 @@ class _EditarClientePageState extends State<EditarClientePage> {
     }
   }
 
+  InputDecoration _buildInputDecoration({
+    required String label,
+    String? hint,
+    required IconData icon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: const TextStyle(color: AppColors.textSecondary),
+      hintStyle: TextStyle(color: AppColors.textSecondary.withOpacity(0.5)),
+      prefixIcon: Icon(icon, color: AppColors.primary),
+      filled: true,
+      fillColor: AppColors.surface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error, width: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Editar Cliente'),
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        title: const Text(
+          'Editar Cliente',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header de sección
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.edit, color: AppColors.primary, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.cliente.nombreNegocio ?? widget.cliente.nombre,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const Text(
+                            'Editando información del cliente',
+                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Nombre Cliente
               TextFormField(
                 controller: _nombreController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre del Cliente',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.person),
+                decoration: _buildInputDecoration(
+                  label: 'Nombre del Cliente',
+                  icon: Icons.person,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -196,14 +289,12 @@ class _EditarClientePageState extends State<EditarClientePage> {
               ),
               const SizedBox(height: 16),
 
+              // Nombre Negocio
               TextFormField(
                 controller: _nombreNegocioController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre del Negocio',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.store),
+                decoration: _buildInputDecoration(
+                  label: 'Nombre del Negocio',
+                  icon: Icons.store,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -214,14 +305,12 @@ class _EditarClientePageState extends State<EditarClientePage> {
               ),
               const SizedBox(height: 16),
 
+              // Dirección
               TextFormField(
                 controller: _direccionController,
-                decoration: InputDecoration(
-                  labelText: 'Dirección',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.location_on),
+                decoration: _buildInputDecoration(
+                  label: 'Dirección',
+                  icon: Icons.location_on,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -232,6 +321,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
               ),
               const SizedBox(height: 16),
 
+              // Teléfono
               TextFormField(
                 controller: _telefonoController,
                 keyboardType: TextInputType.phone,
@@ -239,29 +329,28 @@ class _EditarClientePageState extends State<EditarClientePage> {
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(10),
                 ],
-                decoration: InputDecoration(
-                  labelText: 'Teléfono',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.phone),
+                decoration: _buildInputDecoration(
+                  label: 'Teléfono',
+                  icon: Icons.phone,
                 ),
               ),
               const SizedBox(height: 16),
 
+              // Ruta (Dropdown)
               DropdownButtonFormField<Ruta>(
                 value: _rutaSeleccionada,
-                decoration: InputDecoration(
-                  labelText: 'Ruta',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.directions),
+                decoration: _buildInputDecoration(
+                  label: 'Ruta',
+                  icon: Icons.route,
                 ),
+                dropdownColor: AppColors.surface,
                 items: Ruta.values.map((ruta) {
                   return DropdownMenuItem(
                     value: ruta,
-                    child: Text(ruta.toString().split('.').last.toUpperCase()),
+                    child: Text(
+                      ruta.toString().split('.').last.toUpperCase(),
+                      style: const TextStyle(color: AppColors.textPrimary),
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -272,78 +361,92 @@ class _EditarClientePageState extends State<EditarClientePage> {
               ),
               const SizedBox(height: 16),
 
+              // Observaciones
               TextFormField(
-
                 controller: _observacionesController,
-                decoration: InputDecoration(
-                  labelText: 'Observaciones',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.note),
+                decoration: _buildInputDecoration(
+                  label: 'Observaciones',
+                  icon: Icons.note,
                 ),
                 maxLines: 3,
               ),
+              const SizedBox(height: 24),
 
-              const SizedBox(height: 32),
-
+              // Sección de ubicación
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  border: Border.all(
-                      color: Colors.black54
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  // color: Colors.blue[50],
+                  color: AppColors.surface,
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Ubicación del Negocio',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black54,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.location_on, color: AppColors.primary, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Ubicación del Negocio',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
 
                     // Mostrar ubicación capturada si existe
                     if (_latitud != null && _longitud != null)
                       Container(
-                        padding: const EdgeInsets.all(8),
-                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          border: Border.all(color: Colors.blue),
-                          borderRadius: BorderRadius.circular(4),
+                          color: AppColors.accentLight,
+                          border: Border.all(color: AppColors.accent),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.check_circle, color: Colors.blue, size: 20),
-                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.check, color: Colors.white, size: 16),
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
                                     'Ubicación guardada',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue,
-                                    ),
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accent),
                                   ),
                                   Text(
                                     'Lat: ${_latitud?.toStringAsFixed(6)}, Lon: ${_longitud?.toStringAsFixed(6)}',
-                                    style: const TextStyle(fontSize: 11, color: Colors.blue),
+                                    style: TextStyle(fontSize: 11, color: AppColors.accent.withOpacity(0.8)),
                                   ),
                                 ],
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.close, size: 18, color: Colors.red[300]),
+                              icon: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.close, size: 16, color: AppColors.error),
+                              ),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                               tooltip: 'Eliminar ubicación',
@@ -360,15 +463,15 @@ class _EditarClientePageState extends State<EditarClientePage> {
                           child: ElevatedButton(
                             onPressed: _cargandoUbicacion ? null : _capturarUbicacion,
                             style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.blue[700],
-                              elevation: 2,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              backgroundColor: AppColors.surface,
+                              foregroundColor: AppColors.primary,
+                              elevation: 0,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
-                                  color: _cargandoUbicacion ? Colors.grey : Colors.blue[700]!,
-                                  width: 1.5,
+                                  color: _cargandoUbicacion ? AppColors.border : AppColors.primary,
+                                  width: 2,
                                 ),
                               ),
                             ),
@@ -376,20 +479,13 @@ class _EditarClientePageState extends State<EditarClientePage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 _cargandoUbicacion
-                                    ? SizedBox(
+                                    ? const SizedBox(
                                   width: 24,
                                   height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.blue[700],
-                                  ),
+                                  child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary),
                                 )
-                                    : Icon(
-                                  Icons.my_location,
-                                  size: 28,
-                                  color: Colors.blue[700],
-                                ),
-                                const SizedBox(height: 3),
+                                    : const Icon(Icons.my_location, size: 24, color: AppColors.primary),
+                                const SizedBox(height: 6),
                                 Text(
                                   _cargandoUbicacion
                                       ? 'Obteniendo...'
@@ -397,7 +493,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: _cargandoUbicacion ? Colors.grey : Colors.blue[700],
+                                    color: _cargandoUbicacion ? AppColors.textSecondary : AppColors.primary,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -413,30 +509,20 @@ class _EditarClientePageState extends State<EditarClientePage> {
                           child: ElevatedButton(
                             onPressed: _seleccionarEnMapa,
                             style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              backgroundColor: Colors.blue[700],
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                  Icons.map,
-                                  size: 28,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(height: 3),
+                                const Icon(Icons.map, size: 24, color: Colors.white),
+                                const SizedBox(height: 6),
                                 Text(
                                   _latitud != null ? 'Editar Mapa' : 'Abrir Mapa',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                                   textAlign: TextAlign.center,
                                 ),
                               ],
@@ -448,25 +534,25 @@ class _EditarClientePageState extends State<EditarClientePage> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 32),
 
-              ElevatedButton(
-                onPressed: _guardarCambios,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  backgroundColor: Colors.blue[700],
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              // Botón Guardar
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _guardarCambios,
+                  icon: const Icon(Icons.check, size: 20),
+                  label: const Text('Guardar Cambios', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
-                child: const Text(
-                  'Guardar Cambios',
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                ),
               ),
-
-
+              const SizedBox(height: 16),
             ],
           ),
         ),

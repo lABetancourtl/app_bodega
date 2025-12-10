@@ -7,13 +7,25 @@ import 'package:app_bodega/app/view/prodcut/crear_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/crear_producto_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_prodcuto_page.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 import '../barcode/barcode_scaner_page.dart' as scanner;
+
+// ============= COLORES DEL TEMA =============
+class AppColors {
+  static const Color primary = Color(0xFF1E3A5F);
+  static const Color primaryLight = Color(0xFF2E5077);
+  static const Color accent = Color(0xFF00B894);
+  static const Color accentLight = Color(0xFFE8F8F5);
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color error = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+}
 
 // ============= PROVIDERS =============
 final categoriasProvider = FutureProvider<List<CategoriaModel>>((ref) async {
@@ -41,13 +53,11 @@ final productosPorCategoriaProvider = FutureProvider.family<List<ProductoModel>,
   return await dbHelper.obtenerProductosPorCategoria(categoriaId);
 });
 
-// <CHANGE> Provider para resaltar producto encontrado por código de barras
 final productoResaltadoProvider = StateProvider<String?>((ref) => null);
-
-// <CHANGE> Provider para el índice del producto a hacer scroll
 final productoIndexScrollProvider = StateProvider<int?>((ref) => null);
+final searchQueryProvider = StateProvider<String>((ref) => '');
 
-// ============= PÁGINA =============
+// ============= PÁGINA PRINCIPAL =============
 class ProductosPage extends ConsumerStatefulWidget {
   const ProductosPage({super.key});
 
@@ -55,11 +65,17 @@ class ProductosPage extends ConsumerStatefulWidget {
   ConsumerState<ProductosPage> createState() => _ProductosPageState();
 }
 
-class _ProductosPageState extends ConsumerState<ProductosPage> {
+class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProviderStateMixin {
   late PageController _pageController;
-
-  // <CHANGE> Mapa de ScrollControllers para cada categoría
   final Map<int, ScrollController> _scrollControllers = {};
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: ref.read(categoriaIndexProvider));
+  }
 
   ScrollController _getScrollController(int index) {
     if (!_scrollControllers.containsKey(index)) {
@@ -69,15 +85,9 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _pageController = PageController(initialPage: 0);
-  }
-
-  @override
   void dispose() {
+    _searchController.dispose();
     _pageController.dispose();
-    // <CHANGE> Limpiar todos los ScrollControllers
     for (var controller in _scrollControllers.values) {
       controller.dispose();
     }
@@ -92,7 +102,136 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     );
   }
 
-  // <CHANGE> Método para escanear código de barras
+  // Mostrar dropdown de categorías
+  void _mostrarSelectorCategorias(BuildContext context, List<CategoriaModel> categorias) {
+    final currentIndex = ref.read(categoriaIndexProvider);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.category, color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Seleccionar Categoría',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${categorias.length} categorías',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: categorias.length,
+                itemBuilder: (context, index) {
+                  final categoria = categorias[index];
+                  final isSelected = index == currentIndex;
+
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    leading: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.accent.withOpacity(0.15) : AppColors.background,
+                        borderRadius: BorderRadius.circular(12),
+                        border: isSelected ? Border.all(color: AppColors.accent, width: 2) : null,
+                      ),
+                      child: Center(
+                        child: Text(
+                          categoria.nombre.substring(0, 1).toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? AppColors.accent : AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      categoria.nombre,
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected ? AppColors.accent : AppColors.textPrimary,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(Icons.check, color: Colors.white, size: 16),
+                    )
+                        : const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _navegarACategoria(index);
+                    },
+                    onLongPress: () {
+                      Navigator.pop(sheetContext);
+                      _mostrarOpcionesCategoria(context, categoria);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _navegarACategoria(int index) {
+    ref.read(categoriaIndexProvider.notifier).state = index;
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
   void _escanearCodigoBarras(BuildContext context, List<CategoriaModel> categorias) async {
     final codigoBarras = await Navigator.push<String>(
       context,
@@ -106,7 +245,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     }
   }
 
-  // <CHANGE> Método para buscar producto por código de barras
   void _buscarProductoPorCodigoBarras(String codigoBarras, List<CategoriaModel> categorias) async {
     final dbHelper = DatabaseHelper();
 
@@ -114,121 +252,132 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
       final producto = await dbHelper.obtenerProductoPorCodigoBarras(codigoBarras);
 
       if (producto != null) {
-        // Vibración de éxito
         if (await Vibration.hasVibrator() ?? false) {
           Vibration.vibrate(pattern: [0, 100, 50, 100], intensities: [0, 200, 0, 255]);
         }
-        // Buscar el índice de la categoría del producto
+
         final categoriaIndex = categorias.indexWhere((cat) => cat.id == producto.categoriaId);
 
         if (categoriaIndex != -1) {
-          // Navegar a la categoría del producto
-          ref.read(categoriaIndexProvider.notifier).state = categoriaIndex;
-          _pageController.animateToPage(
-            categoriaIndex,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
+          _navegarACategoria(categoriaIndex);
 
-          // Resaltar el producto encontrado
           ref.read(productoResaltadoProvider.notifier).state = producto.id;
 
-          // <CHANGE> Obtener el índice del producto para hacer scroll
           final productosEnCategoria = await dbHelper.obtenerProductosPorCategoria(producto.categoriaId);
           final productoIndex = productosEnCategoria.indexWhere((p) => p.id == producto.id);
           if (productoIndex != -1) {
             ref.read(productoIndexScrollProvider.notifier).state = productoIndex;
           }
 
-          // Quitar el resaltado después de 2 segundos
-          Future.delayed(const Duration(milliseconds: 2000), () {
+          Future.delayed(const Duration(milliseconds: 2500), () {
             if (mounted) {
               ref.read(productoResaltadoProvider.notifier).state = null;
             }
           });
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Producto encontrado: ${producto.nombre}'),
-                backgroundColor: Colors.black54,
-                duration: const Duration(milliseconds: 1300),
-              ),
-            );
+            _mostrarSnackBar('Producto encontrado: ${producto.nombre}', isSuccess: true);
           }
         }
       } else {
-        // Vibración de error
         if (await Vibration.hasVibrator() ?? false) {
           Vibration.vibrate(pattern: [0, 300, 100, 300], intensities: [0, 128, 0, 128]);
         }
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('No se encontró producto con código: $codigoBarras'),
-              backgroundColor: Colors.black54,
-              duration: const Duration(milliseconds: 1300),
-            ),
-          );
+          _mostrarSnackBar('No se encontró producto con código: $codigoBarras', isError: true);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al buscar producto: $e'),
-            backgroundColor: Colors.black54,
-            duration: const Duration(milliseconds: 1300),
-          ),
-        );
+        _mostrarSnackBar('Error al buscar producto: $e', isError: true);
       }
     }
   }
 
-  Widget _construirImagenProducto(String? imagenPath) {
-    if (imagenPath != null && imagenPath.isNotEmpty && imagenPath.startsWith('http')) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          imagenPath,
-          fit: BoxFit.cover,
-          width: 60,
-          height: 60,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Container(
-              width: 60,
-              height: 60,
-              alignment: Alignment.center,
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                    loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return _imagenPorDefecto();
-          },
+  void _mostrarSnackBar(String mensaje, {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isSuccess ? Icons.check_circle : (isError ? Icons.error : Icons.info),
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(mensaje)),
+          ],
         ),
-      );
-    }
-    return _imagenPorDefecto();
+        backgroundColor: isSuccess ? AppColors.accent : (isError ? AppColors.error : AppColors.primary),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(milliseconds: 2000),
+      ),
+    );
   }
 
-  Widget _imagenPorDefecto() {
+  Widget _construirImagenProducto(String? imagenPath, {double size = 56}) {
+    if (imagenPath != null && imagenPath.isNotEmpty) {
+      if (imagenPath.startsWith('http')) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            imagenPath,
+            fit: BoxFit.cover,
+            width: size,
+            height: size,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return _imagenPlaceholder(size);
+            },
+            errorBuilder: (context, error, stackTrace) => _imagenPorDefecto(size),
+          ),
+        );
+      } else {
+        final file = File(imagenPath);
+        if (file.existsSync()) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(file, fit: BoxFit.cover, width: size, height: size),
+          );
+        }
+      }
+    }
+    return _imagenPorDefecto(size);
+  }
+
+  Widget _imagenPlaceholder(double size) {
     return Container(
-      width: 60,
-      height: 60,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        color: Colors.blue[100],
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.border,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: const Icon(
-        Icons.image_rounded,
-        size: 32,
+      child: const Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+        ),
       ),
+    );
+  }
+
+  Widget _imagenPorDefecto(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary.withOpacity(0.1), AppColors.accent.withOpacity(0.1)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(Icons.inventory_2_outlined, size: size * 0.4, color: AppColors.primary),
     );
   }
 
@@ -236,26 +385,19 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     final dbHelper = DatabaseHelper();
     final nuevaCategoria = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CrearCategoriaPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const CrearCategoriaPage()),
     );
 
     if (nuevaCategoria != null) {
       try {
         await dbHelper.insertarCategoria(nuevaCategoria);
         ref.invalidate(categoriasProvider);
-
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Categoría ${nuevaCategoria.nombre} creada')),
-          );
+          _mostrarSnackBar('Categoría ${nuevaCategoria.nombre} creada', isSuccess: true);
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
+          _mostrarSnackBar('Error: $e', isError: true);
         }
       }
     }
@@ -265,26 +407,19 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     final dbHelper = DatabaseHelper();
     final categoriaActualizada = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => EditarCategoriaPage(categoria: categoria),
-      ),
+      MaterialPageRoute(builder: (context) => EditarCategoriaPage(categoria: categoria)),
     );
 
     if (categoriaActualizada != null) {
       try {
         await dbHelper.actualizarCategoria(categoriaActualizada);
         ref.invalidate(categoriasProvider);
-
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Categoría ${categoriaActualizada.nombre} actualizada')),
-          );
+          _mostrarSnackBar('Categoría ${categoriaActualizada.nombre} actualizada', isSuccess: true);
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
+          _mostrarSnackBar('Error: $e', isError: true);
         }
       }
     }
@@ -295,42 +430,52 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar Categoría'),
-        content: Text('¿Estás seguro de que deseas eliminar ${categoria.nombre}?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline, color: AppColors.error, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Text('Eliminar Categoría'),
+          ],
+        ),
+        content: Text('¿Estás seguro de que deseas eliminar "${categoria.nombre}"?\n\nEsta acción no se puede deshacer.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () async {
               try {
                 await dbHelper.eliminarCategoria(categoria.id!);
                 ref.invalidate(categoriasProvider);
-
                 final currentIndex = ref.read(categoriaIndexProvider);
                 if (currentIndex > 0) {
                   ref.read(categoriaIndexProvider.notifier).state = currentIndex - 1;
-                  _pageController.jumpToPage(currentIndex - 1);
                 }
-
                 Navigator.pop(context);
-
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Categoría ${categoria.nombre} eliminada')),
-                  );
+                  _mostrarSnackBar('Categoría eliminada', isSuccess: true);
                 }
               } catch (e) {
+                Navigator.pop(context);
                 if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
+                  _mostrarSnackBar('Error: $e', isError: true);
                 }
               }
             },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -341,9 +486,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     final dbHelper = DatabaseHelper();
     final nuevoProducto = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => CrearProductoPage(categorias: categorias),
-      ),
+      MaterialPageRoute(builder: (context) => CrearProductoPage(categorias: categorias)),
     );
 
     if (nuevoProducto != null) {
@@ -351,15 +494,11 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
         await dbHelper.insertarProducto(nuevoProducto);
         ref.invalidate(productosPorCategoriaProvider(nuevoProducto.categoriaId));
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Producto ${nuevoProducto.nombre} creado')),
-          );
+          _mostrarSnackBar('Producto ${nuevoProducto.nombre} creado', isSuccess: true);
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
+          _mostrarSnackBar('Error: $e', isError: true);
         }
       }
     }
@@ -370,184 +509,453 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar Producto'),
-        content: Text('¿Estás seguro de que deseas eliminar ${producto.nombre}?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline, color: AppColors.error, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Eliminar Producto')),
+          ],
+        ),
+        content: Text('¿Eliminar "${producto.nombre}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () async {
               try {
                 await dbHelper.eliminarProducto(producto.id!);
                 ref.invalidate(productosPorCategoriaProvider(producto.categoriaId));
                 Navigator.pop(context);
-
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Producto ${producto.nombre} eliminado')),
-                  );
+                  _mostrarSnackBar('Producto eliminado', isSuccess: true);
                 }
               } catch (e) {
+                Navigator.pop(context);
                 if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
+                  _mostrarSnackBar('Error: $e', isError: true);
                 }
               }
             },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
+  }
+
+  void _verImagenProducto(BuildContext context, ProductoModel producto) {
+    if (producto.imagenPath != null && producto.imagenPath!.isNotEmpty) {
+      Widget imageWidget;
+
+      if (producto.imagenPath!.startsWith('http')) {
+        imageWidget = Image.network(producto.imagenPath!, fit: BoxFit.contain);
+      } else {
+        final file = File(producto.imagenPath!);
+        if (file.existsSync()) {
+          imageWidget = Image.file(file, fit: BoxFit.contain);
+        } else {
+          _mostrarSnackBar('Este producto no tiene imagen');
+          return;
+        }
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            backgroundColor: Colors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              title: Text(producto.nombre, style: const TextStyle(fontSize: 16)),
+            ),
+            body: Center(
+              child: InteractiveViewer(
+                boundaryMargin: const EdgeInsets.all(20),
+                minScale: 0.5,
+                maxScale: 4,
+                child: imageWidget,
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      _mostrarSnackBar('Este producto no tiene imagen');
+    }
   }
 
   void _mostrarMenuFlotante(BuildContext context, List<CategoriaModel> categorias) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       backgroundColor: Colors.white,
       builder: (context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                'Opciones',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Crear nuevo',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
               ),
             ),
             const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.category_outlined),
-              title: const Text('Crear Categoría'),
+            _buildMenuOption(
+              icon: Icons.category_outlined,
+              iconColor: AppColors.primary,
+              title: 'Nueva Categoría',
+              subtitle: 'Agregar una categoría de productos',
               onTap: () {
                 Navigator.pop(context);
                 _crearCategoria(context);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.local_drink_outlined),
-              title: const Text('Crear Producto'),
+            _buildMenuOption(
+              icon: Icons.inventory_2_outlined,
+              iconColor: AppColors.accent,
+              title: 'Nuevo Producto',
+              subtitle: 'Agregar un producto al catálogo',
               onTap: () {
                 Navigator.pop(context);
                 _crearProducto(context, categorias);
               },
             ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
-
-  void _verImagenProducto(BuildContext context, ProductoModel producto) {
-    if (producto.imagenPath != null && producto.imagenPath!.isNotEmpty) {
-      if (producto.imagenPath!.startsWith('http')) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Imagen del Producto'),
-                centerTitle: true,
-              ),
-              body: Center(
-                child: InteractiveViewer(
-                  boundaryMargin: const EdgeInsets.all(20),
-                  minScale: 0.5,
-                  maxScale: 4,
-                  child: Image.network(
-                    producto.imagenPath!,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-        return;
-      } else {
-        final file = File(producto.imagenPath!);
-        if (file.existsSync()) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => Scaffold(
-                appBar: AppBar(
-                  title: const Text('Imagen del Producto'),
-                  centerTitle: true,
-                ),
-                body: Center(
-                  child: InteractiveViewer(
-                    boundaryMargin: const EdgeInsets.all(20),
-                    minScale: 0.5,
-                    maxScale: 4,
-                    child: Image.file(
-                      file,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-          return;
-        }
-      }
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Este producto no tiene imagen')),
+  Widget _buildMenuOption({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: iconColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: iconColor, size: 24),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+      trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+      onTap: onTap,
     );
   }
 
-  // <CHANGE> Método modificado para incluir resaltado de producto
+  void _mostrarOpcionesCategoria(BuildContext context, CategoriaModel categoria) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.category, color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          categoria.nombre,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        ),
+                        const Text('Opciones de categoría', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 24),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
+              ),
+              title: const Text('Editar categoría'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _editarCategoria(context, categoria);
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+              ),
+              title: const Text('Eliminar categoría', style: TextStyle(color: AppColors.error)),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _eliminarCategoria(context, categoria);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _mostrarOpcionesProducto(BuildContext context, ProductoModel producto, List<CategoriaModel> categorias) {
+    final dbHelper = DatabaseHelper();
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Row(
+                children: [
+                  _construirImagenProducto(producto.imagenPath, size: 48),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          producto.nombre,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '\$${_formatearPrecio(producto.precio)}',
+                          style: const TextStyle(fontSize: 14, color: AppColors.accent, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 24),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.image_outlined, color: AppColors.primary, size: 20),
+              ),
+              title: const Text('Ver imagen'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _verImagenProducto(context, producto);
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.edit_outlined, color: AppColors.accent, size: 20),
+              ),
+              title: const Text('Editar producto'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                final productoActualizado = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditarProductoPage(producto: producto, categorias: categorias),
+                  ),
+                );
+
+                if (productoActualizado != null) {
+                  try {
+                    await dbHelper.actualizarProducto(productoActualizado);
+                    ref.invalidate(productosPorCategoriaProvider(productoActualizado.categoriaId));
+                    if (context.mounted) {
+                      _mostrarSnackBar('Producto actualizado', isSuccess: true);
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      _mostrarSnackBar('Error: $e', isError: true);
+                    }
+                  }
+                }
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+              ),
+              title: const Text('Eliminar producto', style: TextStyle(color: AppColors.error)),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _eliminarProducto(context, producto);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _construirListaProductos(List<ProductoModel> productos, List<CategoriaModel> categorias, int categoriaIndex) {
     if (productos.isEmpty) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.local_drink_outlined,
-            size: 80,
-            color: Colors.grey[300],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No hay productos en esta categoría',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[500],
-              fontWeight: FontWeight.w500,
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.05),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.inventory_2_outlined, size: 64, color: AppColors.primary.withOpacity(0.3)),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            const Text(
+              'Sin productos',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Agrega productos a esta categoría',
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => _crearProducto(context, categorias),
+              icon: const Icon(Icons.add, size: 20),
+              label: const Text('Agregar Producto'),
+            ),
+          ],
+        ),
       );
     }
 
-    // <CHANGE> Obtener el ScrollController para esta categoría
     final scrollController = _getScrollController(categoriaIndex);
+    final searchQuery = ref.watch(searchQueryProvider).toLowerCase();
+
+    final productosFiltrados = searchQuery.isEmpty
+        ? productos
+        : productos.where((p) =>
+    p.nombre.toLowerCase().contains(searchQuery) ||
+        p.sabores.any((s) => s.toLowerCase().contains(searchQuery))
+    ).toList();
 
     return Consumer(
       builder: (context, ref, child) {
         final productoResaltado = ref.watch(productoResaltadoProvider);
         final productoIndexScroll = ref.watch(productoIndexScrollProvider);
 
-        // <CHANGE> Hacer scroll automático cuando hay un producto resaltado
         if (productoResaltado != null && productoIndexScroll != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Altura aproximada de cada item (Card + margin)
-            const double itemHeight = 100.0;
+            const double itemHeight = 88.0;
             final double scrollPosition = productoIndexScroll * itemHeight;
 
             if (scrollController.hasClients) {
@@ -557,81 +965,112 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                 curve: Curves.easeInOut,
               );
             }
-
-            // Limpiar el índice después de hacer scroll
             ref.read(productoIndexScrollProvider.notifier).state = null;
           });
         }
 
+        if (productosFiltrados.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.search_off, size: 64, color: AppColors.textSecondary.withOpacity(0.3)),
+                const SizedBox(height: 16),
+                const Text('No se encontraron productos', style: TextStyle(color: AppColors.textSecondary)),
+              ],
+            ),
+          );
+        }
+
         return ListView.builder(
-          controller: scrollController, // <CHANGE> Agregar controller
-          padding: const EdgeInsets.all(8),
-          itemCount: productos.length,
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+          itemCount: productosFiltrados.length,
           itemBuilder: (context, index) {
-            final producto = productos[index];
+            final producto = productosFiltrados[index];
             final estaResaltado = productoResaltado == producto.id;
 
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: estaResaltado
-                    ? [
-                  BoxShadow(
-                    color: Colors.green.withOpacity(0.6),
-                    blurRadius: 12,
-                    spreadRadius: 2,
-                  ),
-                ]
-                    : null,
-              ),
-              child: Card(
-                elevation: estaResaltado ? 8 : 1,
-                color: estaResaltado ? Colors.green.shade50 : null,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: estaResaltado
-                      ? const BorderSide(color: Colors.green, width: 3)
-                      : BorderSide.none,
-                ),
-                margin: EdgeInsets.zero,
-                child: ListTile(
-                  leading: _construirImagenProducto(producto.imagenPath),
-                  title: Text(
-                    producto.nombre,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Sabor${producto.sabores.length > 1 ? 'es' : ''}: ${producto.sabores.join(', ')}',
-                        style: const TextStyle(fontSize: 12),
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Material(
+                color: estaResaltado ? AppColors.accentLight : AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                elevation: estaResaltado ? 4 : 0,
+                shadowColor: estaResaltado ? AppColors.accent.withOpacity(0.3) : Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => _mostrarOpcionesProducto(context, producto, categorias),
+                  onLongPress: () => _verImagenProducto(context, producto),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: estaResaltado ? AppColors.accent : AppColors.border,
+                        width: estaResaltado ? 2 : 1,
                       ),
-                      Text(
-                        'Precio: \$${_formatearPrecio(producto.precio)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (producto.cantidadPorPaca != null)
-                        Text(
-                          'Cantidad por paca: ${producto.cantidadPorPaca}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
+                    ),
+                    child: Row(
+                      children: [
+                        _construirImagenProducto(producto.imagenPath),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                producto.nombre,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              if (producto.sabores.isNotEmpty)
+                                Text(
+                                  producto.sabores.join(' • '),
+                                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accent.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '\$${_formatearPrecio(producto.precio)}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.accent,
+                                      ),
+                                    ),
+                                  ),
+                                  if (producto.cantidadPorPaca != null) ...[
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${producto.cantidadPorPaca} x paca',
+                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                    ],
+                        const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+                      ],
+                    ),
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    _mostrarOpcionesProducto(context, producto, categorias);
-                  },
-                  onLongPress: () => _verImagenProducto(context, producto),
                 ),
               ),
             );
@@ -641,180 +1080,274 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     );
   }
 
+  // Widget para el selector de categoría en el header
+  Widget _buildCategorySelector(List<CategoriaModel> categorias) {
+    final currentIndex = ref.watch(categoriaIndexProvider);
+    final currentCategory = categorias.isNotEmpty && currentIndex < categorias.length
+        ? categorias[currentIndex]
+        : null;
+
+    return GestureDetector(
+      onTap: () => _mostrarSelectorCategorias(context, categorias),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  currentCategory?.nombre.substring(0, 1).toUpperCase() ?? '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 120),
+              child: Text(
+                currentCategory?.nombre ?? 'Categoría',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down, color: AppColors.primary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Indicador de página actual
+  Widget _buildPageIndicator(int totalPages, int currentPage) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '${currentPage + 1}/$totalPages',
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Row(
+          children: List.generate(
+            totalPages > 5 ? 5 : totalPages,
+                (index) {
+              int dotIndex = index;
+              if (totalPages > 5) {
+                if (currentPage < 3) {
+                  dotIndex = index;
+                } else if (currentPage > totalPages - 3) {
+                  dotIndex = totalPages - 5 + index;
+                } else {
+                  dotIndex = currentPage - 2 + index;
+                }
+              }
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                width: dotIndex == currentPage ? 16 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: dotIndex == currentPage ? AppColors.primary : AppColors.border,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final categoriasAsync = ref.watch(categoriasProvider);
-    final categoriaIndex = ref.watch(categoriaIndexProvider);
+    final currentIndex = ref.watch(categoriaIndexProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Productos',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+    return categoriasAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              CircularProgressIndicator(color: AppColors.primary),
+              SizedBox(height: 16),
+              Text('Cargando catálogo...', style: TextStyle(color: AppColors.textSecondary)),
+            ],
           ),
         ),
-        elevation: 1,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[800],
-        actions: [
-          categoriasAsync.maybeWhen(
-            data: (categorias) => IconButton(
-              icon: const Icon(Icons.qr_code_scanner),
-              tooltip: 'Buscar por código de barras',
-              onPressed: () => _escanearCodigoBarras(context, categorias),
-            ),
-            orElse: () => const SizedBox.shrink(),
-          ),
-          categoriasAsync.maybeWhen(
-            data: (categorias) => IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: 'Crear nuevo',
-              onPressed: () => _mostrarMenuFlotante(context, categorias),
-            ),
-            orElse: () => const SizedBox.shrink(),
-          ),
-        ],
       ),
-      body: categoriasAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
-        data: (categorias) {
-          if (categorias.isEmpty) {
-            return Center(
+      error: (err, stack) => Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: AppColors.error),
+              const SizedBox(height: 16),
+              Text('Error: $err', style: const TextStyle(color: AppColors.error)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(categoriasProvider),
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (categorias) {
+        if (categorias.isEmpty) {
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            appBar: AppBar(
+              backgroundColor: AppColors.surface,
+              elevation: 0,
+              title: const Text(
+                'Productos',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: AppColors.textPrimary),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline, color: AppColors.accent),
+                  onPressed: () => _mostrarMenuFlotante(context, categorias),
+                ),
+              ],
+            ),
+            body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.category_outlined, size: 80, color: Colors.grey[300]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No hay categorías',
-                    style: TextStyle(fontSize: 18, color: Colors.grey[500]),
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.category_outlined, size: 80, color: AppColors.primary.withOpacity(0.3)),
+                  ),
+                  const SizedBox(height: 32),
+                  const Text(
+                    'Sin categorías',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 8),
+                  const Text(
+                    'Comienza creando tu primera categoría',
+                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 32),
                   ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                     onPressed: () => _crearCategoria(context),
                     icon: const Icon(Icons.add),
-                    label: const Text('Crear Categoría'),
+                    label: const Text('Crear Categoría', style: TextStyle(fontSize: 16)),
                   ),
                 ],
               ),
-            );
-          }
+            ),
+          );
+        }
 
-          if (categoriaIndex >= categorias.length) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              ref.read(categoriaIndexProvider.notifier).state = 0;
-              _pageController.jumpToPage(0);
-            });
-          }
-
-          return Column(
-            children: [
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black54, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.white,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton2<int>(
-                          value: categoriaIndex,
-                          isExpanded: true,
-                          hint: const Text('Selecciona una categoría'),
-                          items: categorias.asMap().entries.map((entry) {
-                            final index = entry.key;
-                            final categoria = entry.value;
-                            return DropdownMenuItem<int>(
-                              value: index,
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.category, color: Colors.black54, size: 20),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      categoria.nombre,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (int? nuevoIndex) {
-                            if (nuevoIndex != null) {
-                              ref.read(categoriaIndexProvider.notifier).state = nuevoIndex;
-                              _pageController.animateToPage(
-                                nuevoIndex,
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              );
-                            }
-                          },
-                          buttonStyleData: ButtonStyleData(
-                            height: 50,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              color: Colors.white,
-                            ),
-                          ),
-                          iconStyleData: const IconStyleData(
-                            icon: Icon(Icons.arrow_drop_down),
-                            iconSize: 24,
-                            iconEnabledColor: Colors.black,
-                          ),
-                          dropdownStyleData: DropdownStyleData(
-                            maxHeight: 400,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              color: Colors.white,
-                            ),
-                            elevation: 8,
-                            direction: DropdownDirection.textDirection,
-                            offset: const Offset(0, -4),
-                            scrollbarTheme: ScrollbarThemeData(
-                              radius: const Radius.circular(40),
-                              thickness: WidgetStateProperty.all(6),
-                              thumbVisibility: WidgetStateProperty.all(true),
-                            ),
-                          ),
-                          menuItemStyleData: const MenuItemStyleData(
-                            height: 48,
-                            padding: EdgeInsets.symmetric(horizontal: 16),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        border: Border(
-                          left: BorderSide(color: Colors.grey[300]!, width: 1),
-                        ),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.more_vert, color: Colors.black54),
-                        onPressed: () {
-                          final categoria = categorias[categoriaIndex];
-                          _mostrarOpcionesCategoria(context, categoria);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            backgroundColor: AppColors.surface,
+            elevation: 0,
+            scrolledUnderElevation: 1,
+            titleSpacing: 16,
+            title: _isSearching
+                ? TextField(
+              controller: _searchController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Buscar productos...',
+                hintStyle: TextStyle(color: AppColors.textSecondary),
+                border: InputBorder.none,
               ),
+              style: const TextStyle(color: AppColors.textPrimary),
+              onChanged: (value) {
+                ref.read(searchQueryProvider.notifier).state = value;
+              },
+            )
+                : _buildCategorySelector(categorias),
+            actions: [
+              if (_isSearching)
+                IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.textPrimary),
+                  onPressed: () {
+                    setState(() {
+                      _isSearching = false;
+                      _searchController.clear();
+                      ref.read(searchQueryProvider.notifier).state = '';
+                    });
+                  },
+                )
+              else ...[
+                IconButton(
+                  icon: const Icon(Icons.search, color: AppColors.textPrimary),
+                  tooltip: 'Buscar',
+                  onPressed: () {
+                    setState(() {
+                      _isSearching = true;
+                    });
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary),
+                  tooltip: 'Escanear código',
+                  onPressed: () => _escanearCodigoBarras(context, categorias),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+                  tooltip: 'Crear nuevo',
+                  onPressed: () => _mostrarMenuFlotante(context, categorias),
+                ),
+              ],
+            ],
+          ),
+          body: Column(
+            children: [
+              // Indicador de página
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(bottom: BorderSide(color: AppColors.border.withOpacity(0.5))),
+                ),
+                child: _buildPageIndicator(categorias.length, currentIndex),
+              ),
+              // PageView para deslizar entre categorías
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
@@ -827,13 +1360,13 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                     final productosAsync = ref.watch(productosPorCategoriaProvider(categoria.id!));
 
                     return productosAsync.when(
-                      loading: () => const Center(
+                      loading: () => Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(),
+                          children: const [
+                            CircularProgressIndicator(color: AppColors.primary),
                             SizedBox(height: 16),
-                            Text('Cargando productos...'),
+                            Text('Cargando productos...', style: TextStyle(color: AppColors.textSecondary)),
                           ],
                         ),
                       ),
@@ -841,184 +1374,21 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                            const Icon(Icons.error_outline, size: 64, color: AppColors.error),
                             const SizedBox(height: 16),
-                            Text('Error: $err'),
+                            Text('Error: $err', style: const TextStyle(color: AppColors.error)),
                           ],
                         ),
                       ),
-                      data: (productos) {
-                        return _construirListaProductos(productos, categorias, pageIndex);
-                      },
+                      data: (productos) => _construirListaProductos(productos, categorias, pageIndex),
                     );
                   },
                 ),
               ),
             ],
-          );
-        },
-      ),
-      // ← ELIMINADO: floatingActionButton
-    );
-  }
-
-  void _mostrarOpcionesCategoria(BuildContext context, CategoriaModel categoria) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Wrap(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: Colors.grey[300]!),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    categoria.nombre,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Opciones de categoría',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit,),
-              title: const Text('Editar categoría'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _editarCategoria(context, categoria);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text(
-                'Eliminar categoría',
-                style: TextStyle(color: Colors.red),
-              ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _eliminarCategoria(context, categoria);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _mostrarOpcionesProducto(
-      BuildContext context,
-      ProductoModel producto,
-      List<CategoriaModel> categorias,
-      ) {
-    final dbHelper = DatabaseHelper();
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Wrap(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    producto.nombre,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "Precio: \$${_formatearPrecio(producto.precio)}",
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.image),
-              title: const Text('Ver imagen producto'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _verImagenProducto(context, producto);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Editar producto'),
-              onTap: () async {
-                Navigator.pop(sheetContext);
-
-                final productoActualizado = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => EditarProductoPage(
-                      producto: producto,
-                      categorias: categorias,
-                    ),
-                  ),
-                );
-
-                if (productoActualizado != null) {
-                  try {
-                    await dbHelper.actualizarProducto(productoActualizado);
-                    ref.invalidate(productosPorCategoriaProvider(productoActualizado.categoriaId));
-
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Producto ${productoActualizado.nombre} actualizado'),
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e')),
-                      );
-                    }
-                  }
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Eliminar producto', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _eliminarProducto(context, producto);
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

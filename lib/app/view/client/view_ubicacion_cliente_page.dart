@@ -13,6 +13,21 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/cliente_pulse_market.dart';
 import '../../widgets/pulse_marker.dart';
 
+// ============= COLORES DEL TEMA =============
+class AppColors {
+  static const Color primary = Color(0xFF1E3A5F);
+  static const Color primaryLight = Color(0xFF2E5077);
+  static const Color accent = Color(0xFF00B894);
+  static const Color accentLight = Color(0xFFE8F8F5);
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color error = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+}
+
 class ViewUbicacionClientePage extends StatefulWidget {
   final ClienteModel cliente;
 
@@ -45,6 +60,35 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     _cargarMiUbicacion();
   }
 
+  @override
+  void dispose() {
+    _positionStreamSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _mostrarSnackBar(String mensaje, {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isSuccess ? Icons.check_circle : (isError ? Icons.error : Icons.info),
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(mensaje)),
+          ],
+        ),
+        backgroundColor: isSuccess ? AppColors.accent : (isError ? AppColors.error : AppColors.primary),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(milliseconds: 2000),
+      ),
+    );
+  }
+
   Future<void> _cargarMiUbicacion() async {
     setState(() => _cargandoUbicacion = true);
 
@@ -56,7 +100,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
         _miUbicacion = LatLng(position.latitude, position.longitude);
       });
 
-      // Cargar ruta automáticamente cuando se obtiene la ubicación
       if (_mostrarRuta) {
         _cargarRutaReal();
       }
@@ -65,7 +108,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     setState(() => _cargandoUbicacion = false);
   }
 
-  // Nueva función para obtener la ruta real usando OSRM
   Future<void> _cargarRutaReal() async {
     if (_miUbicacion == null || widget.cliente.latitud == null) return;
 
@@ -75,7 +117,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
       final start = _miUbicacion!;
       final end = LatLng(widget.cliente.latitud!, widget.cliente.longitud!);
 
-      // Llamar al servicio OSRM (Open Source Routing Machine)
       final url = 'https://router.project-osrm.org/route/v1/driving/'
           '${start.longitude},${start.latitude};'
           '${end.longitude},${end.latitude}'
@@ -90,7 +131,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
           final route = data['routes'][0];
           final geometry = route['geometry']['coordinates'] as List;
 
-          // Convertir coordenadas a LatLng
           final puntos = geometry.map((coord) {
             return LatLng(coord[1] as double, coord[0] as double);
           }).toList();
@@ -106,7 +146,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
       }
     } catch (e) {
       print('Error cargando ruta: $e');
-      // En caso de error, mostrar línea recta como fallback
       if (mounted) {
         setState(() {
           _puntosRuta = [
@@ -122,38 +161,79 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     }
   }
 
-  // NUEVA FUNCIÓN: Navegar al cliente
   Future<void> _navegarACliente() async {
     if (widget.cliente.latitud == null || widget.cliente.longitud == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Este cliente no tiene ubicación')),
-      );
+      _mostrarSnackBar('Este cliente no tiene ubicación', isError: true);
       return;
     }
 
-    // Mostrar opciones de navegación
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Navegar a ${widget.cliente.nombreNegocio}',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.navigation, color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Navegar a',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                        Text(
+                          widget.cliente.nombreNegocio ?? widget.cliente.nombre,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.map),
-              title: const Text('Google Maps'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.map, color: Colors.blue, size: 24),
+              ),
+              title: const Text('Google Maps', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Abrir en Google Maps', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
               onTap: () async {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 final url = Uri.parse(
                   'https://www.google.com/maps/dir/?api=1&destination=${widget.cliente.latitud},${widget.cliente.longitud}',
                 );
@@ -161,20 +241,26 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                   await launchUrl(url, mode: LaunchMode.externalApplication);
                 } else {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No se pudo abrir Google Maps'),
-                      ),
-                    );
+                    _mostrarSnackBar('No se pudo abrir Google Maps', isError: true);
                   }
                 }
               },
             ),
             ListTile(
-              leading: const Icon(Icons.navigation, ),
-              title: const Text('Waze'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.navigation, color: Colors.orange, size: 24),
+              ),
+              title: const Text('Waze', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Abrir en Waze', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
               onTap: () async {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 final url = Uri.parse(
                   'https://waze.com/ul?ll=${widget.cliente.latitud},${widget.cliente.longitud}&navigate=yes',
                 );
@@ -182,16 +268,12 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                   await launchUrl(url, mode: LaunchMode.externalApplication);
                 } else {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No se pudo abrir Waze'),
-                      ),
-                    );
+                    _mostrarSnackBar('No se pudo abrir Waze', isError: true);
                   }
                 }
               },
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -214,12 +296,11 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     final marcadores = <Marker>[];
     final ubicacionCliente = LatLng(widget.cliente.latitud!, widget.cliente.longitud!);
 
-    // Marcador del cliente - AHORA CON PRECISIÓN PERFECTA
     marcadores.add(
       Marker(
         point: ubicacionCliente,
         width: 80,
-        height: 100, // Ajustado para incluir el nombre debajo
+        height: 100,
         alignment: Alignment.center,
         child: ClientePulseMarker(
           nombre: widget.cliente.nombreNegocio,
@@ -228,7 +309,6 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
       ),
     );
 
-    // Marcador de mi ubicación (si está disponible y activado)
     if (_miUbicacion != null && _mostrarMiUbicacion) {
       marcadores.add(
         Marker(
@@ -244,14 +324,8 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     return marcadores;
   }
 
-  // Nueva función para construir la línea de ruta REAL
   List<Polyline> _construirRuta() {
-    if (!_mostrarRuta || !_mostrarMiUbicacion) {
-      return [];
-    }
-
-    // Si todavía no hay ruta cargada, no mostrar nada
-    if (_puntosRuta.isEmpty) {
+    if (!_mostrarRuta || !_mostrarMiUbicacion || _puntosRuta.isEmpty) {
       return [];
     }
 
@@ -259,7 +333,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
       Polyline(
         points: _puntosRuta,
         strokeWidth: 5.0,
-        color: Colors.blue.withOpacity(0.8),
+        color: AppColors.primary.withOpacity(0.8),
         borderStrokeWidth: 2.0,
         borderColor: Colors.white,
       ),
@@ -277,15 +351,12 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     if (_miUbicacion != null) {
       _mapController.move(_miUbicacion!, 16.0);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ubicación no disponible')),
-      );
+      _mostrarSnackBar('Ubicación no disponible', isError: true);
     }
   }
 
   void _verAmbosEnMapa() {
     if (_miUbicacion != null) {
-      // Calcular bounds para mostrar ambos puntos
       final bounds = LatLngBounds(
         LatLng(widget.cliente.latitud!, widget.cliente.longitud!),
         _miUbicacion!,
@@ -300,41 +371,65 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     }
   }
 
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: AppColors.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tieneUbicacion = widget.cliente.latitud != null && widget.cliente.longitud != null;
 
     if (!tieneUbicacion) {
       return Scaffold(
+        backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text('Ubicación del Negocio'),
+          backgroundColor: AppColors.surface,
+          elevation: 0,
+          scrolledUnderElevation: 1,
+          title: const Text('Ubicación del Negocio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary)),
+          iconTheme: const IconThemeData(color: AppColors.textPrimary),
           centerTitle: true,
         ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.location_off,
-                size: 80,
-                color: Colors.grey[400],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No hay ubicación registrada',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.05),
+                  shape: BoxShape.circle,
                 ),
+                child: Icon(Icons.location_off, size: 64, color: AppColors.primary.withOpacity(0.3)),
               ),
+              const SizedBox(height: 24),
+              const Text('No hay ubicación registrada', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
               const SizedBox(height: 8),
               Text(
-                'para ${widget.cliente.nombreNegocio}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
+                'para ${widget.cliente.nombreNegocio ?? widget.cliente.nombre}',
+                style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -346,15 +441,20 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
     final distancia = _calcularDistancia();
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Ubicación del Negocio'),
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        title: const Text('Ubicación del Negocio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         centerTitle: true,
         actions: [
           if (_miUbicacion != null)
             IconButton(
               icon: Icon(
                 Icons.my_location,
-                color: _seguirUbicacion ? Colors.blue : Colors.black45,
+                color: _seguirUbicacion ? AppColors.accent : AppColors.textSecondary,
               ),
               tooltip: _seguirUbicacion ? 'Desactivar seguimiento' : 'Seguir mi ubicación',
               onPressed: () {
@@ -363,19 +463,13 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                 });
               },
             ),
-
-          // Toggle para mostrar/ocultar ruta
           if (_miUbicacion != null && _mostrarMiUbicacion)
             IconButton(
               icon: _cargandoRuta
-                  ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
                   : Icon(
                 _mostrarRuta ? Icons.route : Icons.route_outlined,
-                color: _mostrarRuta ? Colors.black45 : Colors.grey,
+                color: _mostrarRuta ? AppColors.primary : AppColors.textSecondary,
               ),
               tooltip: _mostrarRuta ? 'Ocultar ruta' : 'Mostrar ruta',
               onPressed: _cargandoRuta
@@ -389,19 +483,18 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                 });
               },
             ),
-          // Toggle para mostrar/ocultar mi ubicación
           if (_miUbicacion != null)
             IconButton(
               icon: Icon(
                 _mostrarMiUbicacion ? Icons.visibility : Icons.visibility_off,
-                color: _mostrarMiUbicacion ? Colors.black45 : Colors.grey,
+                color: _mostrarMiUbicacion ? AppColors.primary : AppColors.textSecondary,
               ),
               tooltip: _mostrarMiUbicacion ? 'Ocultar mi ubicación' : 'Mostrar mi ubicación',
               onPressed: () {
                 setState(() {
                   _mostrarMiUbicacion = !_mostrarMiUbicacion;
                   if (!_mostrarMiUbicacion) {
-                    _mostrarRuta = false; // Ocultar ruta si se oculta ubicación
+                    _mostrarRuta = false;
                   }
                 });
               },
@@ -417,9 +510,7 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
               initialZoom: 16,
               minZoom: 3,
               maxZoom: 19,
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all,
-              ),
+              interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
             ),
             children: [
               TileLayer(
@@ -428,101 +519,60 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
                 userAgentPackageName: 'com.bodega.app_bodega',
                 maxZoom: 19,
               ),
-              PolylineLayer(
-                polylines: _construirRuta(),
-              ),
-              MarkerLayer(
-                markers: _construirMarcadores(),
-              ),
+              PolylineLayer(polylines: _construirRuta()),
+              MarkerLayer(markers: _construirMarcadores()),
               RichAttributionWidget(
                 attributions: [
-                  TextSourceAttribution(
-                    'OpenStreetMap contributors',
-                    onTap: () {},
-                  ),
+                  TextSourceAttribution('OpenStreetMap contributors', onTap: () {}),
                 ],
               ),
             ],
           ),
 
+          // Controles del mapa
           Positioned(
             bottom: 200,
             right: 16,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Centrar en ambos (si hay ubicación actual)
                 if (_miUbicacion != null && _mostrarMiUbicacion)
-                  FloatingActionButton(
+                  _buildMapButton(
                     heroTag: 'verAmbos',
-                    mini: true,
-                    backgroundColor: Colors.white,
+                    icon: Icons.fit_screen,
                     tooltip: 'Ver ambos en mapa',
                     onPressed: _verAmbosEnMapa,
-                    child: const Icon(Icons.fit_screen, size: 20, color: Colors.black,),
                   ),
-
-                if (_miUbicacion != null && _mostrarMiUbicacion)
-                  const SizedBox(height: 8),
-
-                // Mi ubicación
-                FloatingActionButton(
+                if (_miUbicacion != null && _mostrarMiUbicacion) const SizedBox(height: 8),
+                _buildMapButton(
                   heroTag: 'miUbicacion',
-                  mini: true,
-                  backgroundColor: _cargandoUbicacion ? Colors.grey : Colors.white,
+                  icon: Icons.my_location,
                   tooltip: 'Mi ubicación',
+                  isLoading: _cargandoUbicacion,
                   onPressed: _cargandoUbicacion ? null : _centrarEnMiUbicacion,
-                  child: _cargandoUbicacion
-                      ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                      : const Icon(Icons.my_location, size: 20, color: Colors.black),
                 ),
                 const SizedBox(height: 8),
-
-                // Centrar en cliente
-                FloatingActionButton(
+                _buildMapButton(
                   heroTag: 'centrarCliente',
-                  mini: true,
-                  backgroundColor: Colors.white,
+                  icon: Icons.store,
                   tooltip: 'Centrar en cliente',
                   onPressed: _centrarEnCliente,
-                  child: const Icon(Icons.store, size: 20, color: Colors.black),
                 ),
                 const SizedBox(height: 8),
-
-                // Zoom in
-                FloatingActionButton(
+                _buildMapButton(
                   heroTag: 'zoomIn',
-                  mini: true,
-                  backgroundColor: Colors.white,
+                  icon: Icons.add,
                   onPressed: () {
-                    _mapController.move(
-                      _mapController.camera.center,
-                      _mapController.camera.zoom + 1,
-                    );
+                    _mapController.move(_mapController.camera.center, _mapController.camera.zoom + 1);
                   },
-                  child: const Icon(Icons.add, color: Colors.black, ),
                 ),
                 const SizedBox(height: 8),
-
-                // Zoom out
-                FloatingActionButton(
+                _buildMapButton(
                   heroTag: 'zoomOut',
-                  mini: true,
-                  backgroundColor: Colors.white,
+                  icon: Icons.remove,
                   onPressed: () {
-                    _mapController.move(
-                      _mapController.camera.center,
-                      _mapController.camera.zoom - 1,
-                    );
+                    _mapController.move(_mapController.camera.center, _mapController.camera.zoom - 1);
                   },
-                  child: const Icon(Icons.remove, color: Colors.black),
                 ),
               ],
             ),
@@ -532,13 +582,10 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
       bottomSheet: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5)),
           ],
         ),
         child: SafeArea(
@@ -546,122 +593,63 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                widget.cliente.nombreNegocio,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.store, color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      widget.cliente.direccion,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.cliente.nombreNegocio ?? 'Sin negocio',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        ),
+                        Text(
+                          widget.cliente.nombre,
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              _buildInfoRow(Icons.location_on, 'Dirección', widget.cliente.direccion ?? 'Sin dirección'),
 
-              // Muestra distancia de la ruta real
               if (_distanciaRuta != null && _mostrarRuta && _mostrarMiUbicacion) ...[
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.directions_car, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Distancia por carretera: ${_distanciaRuta! < 1000 ? "${_distanciaRuta!.toStringAsFixed(0)} m" : "${(_distanciaRuta! / 1000).toStringAsFixed(2)} km"}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
+                _buildInfoRow(
+                  Icons.directions_car,
+                  'Distancia por carretera',
+                  _distanciaRuta! < 1000 ? '${_distanciaRuta!.toStringAsFixed(0)} m' : '${(_distanciaRuta! / 1000).toStringAsFixed(2)} km',
                 ),
               ],
 
-              // Mostrar tiempo estimado
               if (_duracionRuta != null && _mostrarRuta && _mostrarMiUbicacion) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Tiempo estimado: ${(_duracionRuta! / 60).toStringAsFixed(0)} min',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-
-              const SizedBox(height: 8),
-              Text(
-                'Coordenadas: ${widget.cliente.latitud?.toStringAsFixed(6)}, ${widget.cliente.longitud?.toStringAsFixed(6)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
-              ),
-
-              // Indicador de carga de ubicación o ruta
-              if (_cargandoUbicacion || _cargandoRuta) ...[
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _cargandoUbicacion
-                          ? 'Obteniendo tu ubicación...'
-                          : 'Calculando ruta...',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
+                _buildInfoRow(Icons.access_time, 'Tiempo estimado', '${(_duracionRuta! / 60).toStringAsFixed(0)} min'),
               ],
 
-              // NUEVO: Botón de navegación
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: _navegarACliente,
-                  icon: const Icon(Icons.directions),
-                  label: const Text('Navegar a este lugar'),
+                  icon: const Icon(Icons.navigation),
+                  label: const Text('Iniciar Navegación'),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: Colors.blue,
+                    backgroundColor: AppColors.accent,
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -669,6 +657,26 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMapButton({
+    required String heroTag,
+    required IconData icon,
+    String? tooltip,
+    VoidCallback? onPressed,
+    bool isLoading = false,
+  }) {
+    return FloatingActionButton(
+      heroTag: heroTag,
+      mini: true,
+      backgroundColor: AppColors.surface,
+      tooltip: tooltip,
+      elevation: 2,
+      onPressed: onPressed,
+      child: isLoading
+          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+          : Icon(icon, size: 20, color: AppColors.primary),
     );
   }
 }

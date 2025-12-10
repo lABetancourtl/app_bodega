@@ -1,7 +1,21 @@
 import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
-import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:flutter/material.dart';
+
+// ============= COLORES DEL TEMA =============
+class AppColors {
+  static const Color primary = Color(0xFF1E3A5F);
+  static const Color primaryLight = Color(0xFF2E5077);
+  static const Color accent = Color(0xFF00B894);
+  static const Color accentLight = Color(0xFFE8F8F5);
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color error = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+}
 
 class ResumenProductosDiaPage extends StatefulWidget {
   final List<FacturaModel> facturas;
@@ -21,7 +35,7 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   late TextEditingController _busquedaController;
   String? _categoriaSeleccionada;
-  Map<String, String> _productosCategorias = {}; // productoId -> categoriaId
+  Map<String, String> _productosCategorias = {};
   bool _cargandoCategorias = true;
 
   @override
@@ -115,7 +129,6 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
       ) {
     var productosFiltrados = resumen;
 
-    // Filtrar por categoría
     if (_categoriaSeleccionada != null) {
       productosFiltrados = Map.fromEntries(
         productosFiltrados.entries.where((entry) {
@@ -125,7 +138,6 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
       );
     }
 
-    // Filtrar por búsqueda
     final busqueda = _busquedaController.text.toLowerCase();
     if (busqueda.isNotEmpty) {
       productosFiltrados = Map.fromEntries(
@@ -158,119 +170,61 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
     final resumenFiltrado = _filtrarProductos(resumen);
     final productos = resumenFiltrado.entries.toList();
 
-    productos.sort((a, b) =>
-        (b.value['cantidadTotal'] as int).compareTo(a.value['cantidadTotal'] as int)
-    );
+    productos.sort((a, b) => (b.value['cantidadTotal'] as int).compareTo(a.value['cantidadTotal'] as int));
 
     final totalGeneral = productos.fold(0.0, (sum, p) => sum + (p.value['subtotal'] as double));
     final cantidadTotalProductos = productos.fold(0, (sum, p) => sum + (p.value['cantidadTotal'] as int));
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
         title: const Text(
           'Resumen de Productos',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
         ),
-        elevation: 1,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[800],
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
       body: Column(
         children: [
-          // Encabezado con fecha y totales
+          // Header con fecha y totales
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              border: Border(
-                bottom: BorderSide(color: Colors.blue.shade200),
-              ),
+              color: AppColors.surface,
+              border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.calendar_today, size: 20, color: Colors.blue.shade700),
-                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.calendar_today, size: 18, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 10),
                     Text(
                       _formatearFecha(widget.fecha),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade900,
-                      ),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Facturas',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        Text(
-                          '${widget.facturas.length}',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade900,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Productos',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        Text(
-                          '$cantidadTotalProductos',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade900,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Total',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        Text(
-                          '\$${_formatearPrecio(totalGeneral)}',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildStatCard('Facturas', '${widget.facturas.length}', Icons.receipt),
+                    const SizedBox(width: 12),
+                    _buildStatCard('Productos', '$cantidadTotalProductos', Icons.inventory_2),
+                    const SizedBox(width: 12),
+                    _buildStatCard('Total', '\$${_formatearPrecio(totalGeneral)}', Icons.attach_money, isAccent: true),
                   ],
                 ),
               ],
@@ -282,39 +236,40 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
             padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _busquedaController,
-              onChanged: (_) {
-                setState(() {});
-              },
+              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: 'Buscar producto por nombre...',
-                prefixIcon: Icon(Icons.search, color: Colors.blue.shade700),
+                hintText: 'Buscar producto...',
+                hintStyle: TextStyle(color: AppColors.textSecondary.withOpacity(0.5)),
+                prefixIcon: const Icon(Icons.search, color: AppColors.primary),
                 suffixIcon: _busquedaController.text.isNotEmpty
                     ? IconButton(
-                  icon: Icon(Icons.clear, color: Colors.blue.shade700),
+                  icon: const Icon(Icons.clear, color: AppColors.textSecondary),
                   onPressed: () {
                     _busquedaController.clear();
                     setState(() {});
                   },
                 )
                     : null,
+                filled: true,
+                fillColor: AppColors.surface,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.blue.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.blue.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
             ),
           ),
 
-          // Fila de categorías
+          // Filtros de categoría
           if (!_cargandoCategorias)
             FutureBuilder(
               future: _dbHelper.obtenerCategorias(),
@@ -326,10 +281,7 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
                 final todasCategorias = snapshot.data!;
                 final categoriasConProductos = _obtenerCategoriasConProductos(resumen);
 
-                // Filtrar solo las categorías que tienen productos en este resumen
-                final categorias = todasCategorias
-                    .where((cat) => categoriasConProductos.contains(cat.id))
-                    .toList();
+                final categorias = todasCategorias.where((cat) => categoriasConProductos.contains(cat.id)).toList();
 
                 if (categorias.isEmpty) {
                   return const SizedBox.shrink();
@@ -339,44 +291,16 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
                   height: 50,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: FilterChip(
-                          label: const Text('Todas'),
-                          selected: _categoriaSeleccionada == null,
-                          onSelected: (selected) {
-                            setState(() {
-                              _categoriaSeleccionada = null;
-                            });
-                          },
-                          backgroundColor: Colors.grey[200],
-                          selectedColor: Colors.blue,
-                          labelStyle: TextStyle(
-                            color: _categoriaSeleccionada == null ? Colors.white : Colors.black,
-                          ),
-                        ),
-                      ),
+                      _buildFilterChip('Todas', _categoriaSeleccionada == null, () {
+                        setState(() => _categoriaSeleccionada = null);
+                      }),
                       ...categorias.map((categoria) {
                         final isSelected = _categoriaSeleccionada == categoria.id;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: FilterChip(
-                            label: Text(categoria.nombre),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() {
-                                _categoriaSeleccionada = categoria.id;
-                              });
-                            },
-                            backgroundColor: Colors.grey[200],
-                            selectedColor: Colors.blue,
-                            labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : Colors.black,
-                            ),
-                          ),
-                        );
+                        return _buildFilterChip(categoria.nombre, isSelected, () {
+                          setState(() => _categoriaSeleccionada = categoria.id);
+                        });
                       }).toList(),
                     ],
                   ),
@@ -391,27 +315,26 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 80,
-                    color: Colors.grey[300],
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.inventory_2_outlined, size: 64, color: AppColors.primary.withOpacity(0.3)),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     _busquedaController.text.isEmpty && _categoriaSeleccionada == null
                         ? 'No hay productos para esta fecha'
                         : 'No se encontraron productos',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[500],
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: const TextStyle(fontSize: 16, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
             )
                 : ListView.builder(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(16),
               itemCount: productos.length,
               itemBuilder: (context, index) {
                 final producto = productos[index];
@@ -423,125 +346,154 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
                 final tieneSabores = datos['tieneSabores'] as bool;
                 final sabores = datos['sabores'] as Map<String, int>;
 
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  elevation: 2,
-                  child: ExpansionTile(
-                    leading: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade700,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$cantidadTotal',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      nombreProducto,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        Text(
-                          'Precio unitario: \$${_formatearPrecio(precioUnitario)}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Subtotal: \$${_formatearPrecio(subtotal)}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    children: tieneSabores && sabores.isNotEmpty
-                        ? [
-                      Container(
-                        padding: const EdgeInsets.all(16),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Theme(
+                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      childrenPadding: EdgeInsets.zero,
+                      leading: Container(
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          border: Border(
-                            top: BorderSide(color: Colors.grey.shade300),
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$cantidadTotal',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.list_alt, size: 18, color: Colors.blue.shade700),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Distribución por sabor:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue.shade900,
-                                    fontSize: 14,
+                      ),
+                      title: Text(
+                        nombreProducto,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          Text(
+                            'Precio: \$${_formatearPrecio(precioUnitario)}',
+                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                          Text(
+                            'Subtotal: \$${_formatearPrecio(subtotal)}',
+                            style: const TextStyle(fontSize: 13, color: AppColors.accent, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      children: tieneSabores && sabores.isNotEmpty
+                          ? [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            border: Border(top: BorderSide(color: AppColors.border)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.list_alt, size: 16, color: AppColors.primary),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Distribución por sabor:',
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            ...sabores.entries.map((entry) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      entry.key,
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue.shade100,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        '${entry.value} unidades',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.blue.shade900,
-                                          fontSize: 13,
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              ...sabores.entries.map((entry) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(entry.key, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          '${entry.value} unidades',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ],
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ],
+                          ),
                         ),
-                      ),
-                    ]
-                        : [],
+                      ]
+                          : [],
+                    ),
                   ),
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, IconData icon, {bool isAccent = false}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isAccent ? AppColors.accentLight : AppColors.background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isAccent ? AppColors.accent.withOpacity(0.3) : AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontSize: 11, color: isAccent ? AppColors.accent : AppColors.textSecondary)),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isAccent ? AppColors.accent : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, bool isSelected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (_) => onTap(),
+        backgroundColor: AppColors.surface,
+        selectedColor: AppColors.primary,
+        side: BorderSide(color: isSelected ? AppColors.primary : AppColors.border),
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : AppColors.textPrimary,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }

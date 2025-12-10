@@ -3,6 +3,21 @@ import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
 import 'package:flutter/material.dart';
 
+// ============= COLORES DEL TEMA =============
+class AppColors {
+  static const Color primary = Color(0xFF1E3A5F);
+  static const Color primaryLight = Color(0xFF2E5077);
+  static const Color accent = Color(0xFF00B894);
+  static const Color accentLight = Color(0xFFE8F8F5);
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color error = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+}
+
 class HistorialFacturasClientePage extends StatefulWidget {
   final ClienteModel cliente;
 
@@ -36,7 +51,6 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
     try {
       final facturasObtenidas = await _dbHelper.obtenerFacturasPorCliente(
         widget.cliente.id!,
-        // limit: 3,
       );
 
       if (mounted) {
@@ -76,88 +90,84 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
     final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
         title: const Text(
           'Historial de Facturas',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
         ),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
       body: Column(
         children: [
+          // Header con info del cliente
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
-              border: Border(
-                bottom: BorderSide(color: Colors.grey[200]!),
-              ),
+              color: AppColors.surface,
+              border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  widget.cliente.nombre,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.person, color: AppColors.primary, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.cliente.nombre,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                      if (widget.cliente.nombreNegocio != null)
+                        Text(
+                          widget.cliente.nombreNegocio!,
+                          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                        ),
+                      if (widget.cliente.direccion != null)
+                        Text(
+                          widget.cliente.direccion!,
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                    ],
                   ),
                 ),
-                if (widget.cliente.nombreNegocio != null) ...[
-                  Text(
-                    widget.cliente.nombreNegocio!,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentLight,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ],
-                Text(
-                  widget.cliente.direccion!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                Text(
-                  widget.cliente.telefono!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Últimas 3 facturas',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.blue[300],
-                    fontWeight: FontWeight.w500,
+                  child: Text(
+                    '${facturas.length}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent, fontSize: 14),
                   ),
                 ),
               ],
             ),
           ),
 
+          // Lista de facturas
           Expanded(
             child: _cargando
-                ? const Center(
+                ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text(
-                    'Cargando facturas...',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  const CircularProgressIndicator(color: AppColors.primary),
+                  const SizedBox(height: 16),
+                  const Text('Cargando facturas...', style: TextStyle(color: AppColors.textSecondary)),
                 ],
               ),
             )
@@ -166,30 +176,26 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 48,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error al cargar',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[700],
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.1),
+                      shape: BoxShape.circle,
                     ),
+                    child: const Icon(Icons.error_outline, size: 48, color: AppColors.error),
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
+                  const Text('Error al cargar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
                     onPressed: _cargarFacturas,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Reintentar'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black87,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
-                    child: const Text(
-                      'Reintentar',
-                      style: TextStyle(color: Colors.white),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ],
@@ -200,28 +206,18 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.receipt_long_outlined,
-                    size: 64,
-                    color: Colors.grey[300],
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.receipt_long_outlined, size: 64, color: AppColors.primary.withOpacity(0.3)),
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    'Sin facturas',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[600],
-                    ),
-                  ),
+                  const Text('Sin facturas', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                   const SizedBox(height: 8),
-                  Text(
-                    'Este cliente no tiene facturas',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[500],
-                    ),
-                  ),
+                  const Text('Este cliente no tiene facturas', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                 ],
               ),
             )
@@ -230,10 +226,7 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
               itemCount: facturas.length,
               itemBuilder: (context, index) {
                 final factura = facturas[index];
-                final total = factura.items.fold(
-                  0.0,
-                      (sum, item) => sum + item.subtotal,
-                );
+                final total = factura.items.fold(0.0, (sum, item) => sum + item.subtotal);
 
                 return GestureDetector(
                   onTap: () {
@@ -241,66 +234,66 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.grey[200]!),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.surface,
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header row
+                        // Header
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              _formatearFecha(factura.fecha),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: Colors.black87,
-                              ),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.receipt, size: 18, color: AppColors.primary),
+                                ),
+                                const SizedBox(width: 10),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _formatearFecha(factura.fecha),
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
+                                    ),
+                                    Text(
+                                      'Código #${factura.id ?? '0'}',
+                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                             Text(
                               _formatearHora(factura.fecha),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: Colors.black87,
-                              ),
+                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: AppColors.textSecondary),
                             ),
                           ],
                         ),
-                        Text(
-                          'Codigo #${factura.id ?? '0'}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.normal,
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Divider(color: Colors.grey[200], height: 1),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
+                        const Divider(height: 1, color: AppColors.border),
+                        const SizedBox(height: 12),
 
-                        // Info row
+                        // Info
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               '${factura.items.length} producto${factura.items.length != 1 ? 's' : ''}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[700],
-                              ),
+                              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
                             ),
                             Text(
                               '${factura.items.fold(0, (sum, item) => sum + item.cantidadTotal)} unidades',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[700],
-                              ),
+                              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
                             ),
                           ],
                         ),
@@ -310,21 +303,10 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'TOTAL',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[700],
-                              ),
-                            ),
+                            const Text('TOTAL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
                             Text(
                               '\$${_formatearPrecio(total)}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Colors.grey[700],
-                              ),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.accent),
                             ),
                           ],
                         ),
@@ -345,7 +327,7 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.7,
@@ -358,64 +340,62 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
           return Column(
             children: [
               Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 16),
                 width: 40,
                 height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: AppColors.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
 
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
                       children: [
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.receipt_long, color: AppColors.primary, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${_formatearFecha(factura.fecha)} ${' - '}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: Colors.black87,
-                              ),
+                              '${_formatearFecha(factura.fecha)} - ${_formatearHora(factura.fecha)}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
                             ),
                             Text(
-                              _formatearHora(factura.fecha),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: Colors.black87,
-                              ),
+                              'Código #${factura.id ?? '0'}',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                           ],
-                        ),
-                        Text(
-                          'Codigo #${factura.id ?? '0'}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.normal,
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
                         ),
                       ],
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.close, size: 18, color: AppColors.textSecondary),
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
               ),
 
-              const Divider(),
+              const Divider(height: 1, color: AppColors.border),
 
               Expanded(
                 child: ListView.builder(
@@ -426,11 +406,11 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
                     final item = factura.items[index];
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        border: Border.all(color: Colors.grey[200]!),
-                        borderRadius: BorderRadius.circular(8),
+                        color: AppColors.background,
+                        border: Border.all(color: AppColors.border),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,59 +421,56 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
                               Expanded(
                                 child: Text(
                                   item.nombreProducto,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                'x${item.cantidadTotal}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey[700],
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'x${item.cantidadTotal}',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
                                 ),
                               ),
                             ],
                           ),
                           if (item.tieneSabores) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             Wrap(
-                              spacing: 4,
-                              runSpacing: 4,
+                              spacing: 6,
+                              runSpacing: 6,
                               children: item.cantidadPorSabor.entries
                                   .where((e) => e.value > 0)
-                                  .map((e) => Chip(
-                                label: Text(
-                                  '${e.key}: ${e.value}',
-                                  style: const TextStyle(fontSize: 10),
+                                  .map((e) => Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  border: Border.all(color: AppColors.border),
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
-                                padding: const EdgeInsets.all(4),
-                                backgroundColor: Colors.grey[200],
-                                side: BorderSide(color: Colors.grey[300]!),
+                                child: Text(
+                                  '${e.key}: ${e.value}',
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                ),
                               ))
                                   .toList(),
                             ),
                           ],
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                '\$${_formatearPrecio(item.precioUnitario)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
+                                '\$${_formatearPrecio(item.precioUnitario)} c/u',
+                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                               ),
                               Text(
                                 '\$${_formatearPrecio(item.subtotal)}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.accent),
                               ),
                             ],
                           ),
@@ -507,29 +484,20 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  border: Border(top: BorderSide(color: Colors.grey[200]!)),
+                  color: AppColors.surface,
+                  border: Border(top: BorderSide(color: AppColors.border)),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'TOTAL',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[1000],
+                child: SafeArea(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('TOTAL', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      Text(
+                        '\$${_formatearPrecio(total)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.accent),
                       ),
-                    ),
-                    Text(
-                      '\$${_formatearPrecio(total)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Colors.grey[1000],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

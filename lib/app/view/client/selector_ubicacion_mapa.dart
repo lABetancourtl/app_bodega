@@ -33,20 +33,22 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
   }
 
   Future<void> _inicializarUbicacion() async {
-    // Si hay ubicación inicial proporcionada, usarla
+    // Si hay ubicación inicial proporcionada, usarla como punto seleccionado
     if (widget.latitudInicial != null && widget.longitudInicial != null) {
       setState(() {
         _ubicacionSeleccionada = LatLng(widget.latitudInicial!, widget.longitudInicial!);
       });
+
+      // También obtener la ubicación actual para mostrar el marcador azul
+      await _obtenerUbicacionActual();
     } else {
-      // Si no, obtener la ubicación actual con alta precisión
+      // Si no hay ubicación inicial, solo obtener y centrar en ubicación actual
+      // pero NO establecer _ubicacionSeleccionada (dejar que el usuario la seleccione)
       await _obtenerUbicacionActual();
 
-      // Establecer la ubicación seleccionada como la ubicación actual
+      // Solo centrar el mapa, sin marcar una ubicación seleccionada
       if (_miUbicacionActual != null) {
-        setState(() {
-          _ubicacionSeleccionada = _miUbicacionActual;
-        });
+        _mapController.move(_miUbicacionActual!, 17.0);
       }
     }
   }
@@ -64,8 +66,10 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
         _miUbicacionActual = ubicacion;
       });
 
-      // Centrar el mapa en la ubicación actual
-      _mapController.move(ubicacion, 17.0);
+      // Solo centrar si no hay una ubicación inicial proporcionada
+      if (widget.latitudInicial == null || widget.longitudInicial == null) {
+        _mapController.move(ubicacion, 17.0);
+      }
     } else {
       // Si falla, usar una ubicación por defecto (Armenia, Quindío)
       if (mounted) {
@@ -118,7 +122,20 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
   List<Marker> _construirMarcadores() {
     final marcadores = <Marker>[];
 
-    // Marcador de la ubicación seleccionada
+    // Marcador de mi ubicación actual (azul pulsante) - PRIMERO
+    if (_miUbicacionActual != null && _mostrarMiUbicacion) {
+      marcadores.add(
+        Marker(
+          point: _miUbicacionActual!,
+          width: 80,
+          height: 80,
+          alignment: Alignment.center,
+          child: const PulseMarker(),
+        ),
+      );
+    }
+
+    // Marcador de la ubicación seleccionada (pin rojo) - SEGUNDO (se dibuja encima)
     if (_ubicacionSeleccionada != null) {
       marcadores.add(
         Marker(
@@ -131,17 +148,6 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
             color: Colors.red,
             size: 50,
           ),
-        ),
-      );
-    }
-    if (_miUbicacionActual != null && _mostrarMiUbicacion) {
-      marcadores.add(
-        Marker(
-          point: _miUbicacionActual!,
-          width: 80,
-          height: 80,
-          alignment: Alignment.center,
-          child: const PulseMarker(),
         ),
       );
     }
@@ -255,7 +261,7 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                const SizedBox(width: 12), // espacio entre Lat y Lon
+                                const SizedBox(width: 12),
                                 Text(
                                   'Lon: ${_ubicacionSeleccionada!.longitude.toStringAsFixed(6)}',
                                   style: const TextStyle(
@@ -286,7 +292,7 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
-                              'Obteniendo ubicación con precisión...',
+                              'Obteniendo ubicación...',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontStyle: FontStyle.italic,
@@ -339,7 +345,7 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
                       color: Colors.blue,
                     ),
                   )
-                      : const Icon(Icons.location_pin, color: Colors.black),
+                      : const Icon(Icons.my_location, color: Colors.black),
                 ),
                 const SizedBox(height: 8),
 
@@ -390,9 +396,9 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                   elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
                 ),
               ),
             ),

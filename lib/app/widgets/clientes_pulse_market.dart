@@ -103,29 +103,29 @@ class _ClientesPulseMarkerState extends State<ClientesPulseMarker>
         const SizedBox(height: 4),
 
         // --- Nombre ---
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(4),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 4,
-              ),
-            ],
-          ),
-          child: Text(
-            widget.nombre,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: esSel ? 11 : 9,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-        ),
+        // Container(
+        //   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        //   decoration: BoxDecoration(
+        //     color: Colors.white,
+        //     borderRadius: BorderRadius.circular(4),
+        //     boxShadow: [
+        //       BoxShadow(
+        //         color: Colors.black.withOpacity(0.12),
+        //         blurRadius: 4,
+        //       ),
+        //     ],
+        //   ),
+        //   child: Text(
+        //     widget.nombre,
+        //     maxLines: 1,
+        //     overflow: TextOverflow.ellipsis,
+        //     style: TextStyle(
+        //       fontSize: esSel ? 11 : 9,
+        //       fontWeight: FontWeight.bold,
+        //       color: Colors.black,
+        //     ),
+        //   ),
+        // ),
       ],
     );
   }

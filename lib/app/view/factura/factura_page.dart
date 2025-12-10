@@ -10,6 +10,21 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../service/esc_pos_service.dart';
 
+// ============= COLORES DEL TEMA =============
+class AppColors {
+  static const Color primary = Color(0xFF1E3A5F);
+  static const Color primaryLight = Color(0xFF2E5077);
+  static const Color accent = Color(0xFF00B894);
+  static const Color accentLight = Color(0xFFE8F8F5);
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color error = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+}
+
 // ============= STATE NOTIFIER PARA FECHA =============
 class FechaState {
   final DateTime fechaSeleccionada;
@@ -63,7 +78,9 @@ class FacturaPage extends ConsumerWidget {
   const FacturaPage({super.key});
 
   String _formatearFecha(DateTime fecha) {
-    return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+    final dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    final meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    return '${dias[fecha.weekday % 7]}, ${fecha.day} ${meses[fecha.month - 1]} ${fecha.year}';
   }
 
   String _formatearPrecio(double precio) {
@@ -71,6 +88,29 @@ class FacturaPage extends ConsumerWidget {
     return precioInt.toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
           (match) => '.',
+    );
+  }
+
+  void _mostrarSnackBar(BuildContext context, String mensaje, {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isSuccess ? Icons.check_circle : (isError ? Icons.error : Icons.info),
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(mensaje)),
+          ],
+        ),
+        backgroundColor: isSuccess ? AppColors.accent : (isError ? AppColors.error : AppColors.primary),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(milliseconds: 2000),
+      ),
     );
   }
 
@@ -82,6 +122,19 @@ class FacturaPage extends ConsumerWidget {
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       locale: const Locale('es', 'ES'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null) {
@@ -104,35 +157,47 @@ class FacturaPage extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Eliminar Factura'),
-        content: Text('¿Estás seguro de que deseas eliminar la factura de ${factura.nombreCliente}?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline, color: AppColors.error, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Text('Eliminar Factura'),
+          ],
+        ),
+        content: Text('¿Eliminar la factura de ${factura.nombreCliente}?\n\nEsta acción no se puede deshacer.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
+            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () async {
               Navigator.pop(dialogContext);
-
               try {
                 await dbHelper.eliminarFactura(factura.id!);
                 ref.invalidate(facturasProvider);
-
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Factura eliminada')),
-                  );
+                  _mostrarSnackBar(context, 'Factura eliminada', isSuccess: true);
                 }
               } catch (e) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
+                  _mostrarSnackBar(context, 'Error: $e', isError: true);
                 }
               }
             },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -144,42 +209,70 @@ class FacturaPage extends ConsumerWidget {
       final opcion = await showModalBottomSheet<String>(
         context: context,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         builder: (context) {
           return Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Selecciona el formato:',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[1000],
-                    fontWeight: FontWeight.bold,
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 5),
-
-                // Botón PDF
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Seleccionar formato',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                  title: const Text('Descargar PDF'),
-                  subtitle: const Text('Guardar como PDF (80mm)'),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.picture_as_pdf, color: AppColors.error, size: 24),
+                  ),
+                  title: const Text('Descargar PDF', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Guardar como PDF (80mm)', style: TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
                   onTap: () => Navigator.pop(context, 'pdf'),
                 ),
-
-                // Botón Ticket ESC/POS (Bluetooth)
                 ListTile(
-                  leading: const Icon(Icons.bluetooth, color: Colors.blue),
-                  title: const Text('Imprimir por Bluetooth'),
-                  subtitle: const Text('Enviar a impresora térmica'),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.bluetooth, color: AppColors.primary, size: 24),
+                  ),
+                  title: const Text('Imprimir Bluetooth', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Enviar a impresora térmica', style: TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
                   onTap: () => Navigator.pop(context, 'bluetooth'),
                 ),
-
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
               ],
             ),
           );
@@ -188,57 +281,70 @@ class FacturaPage extends ConsumerWidget {
 
       if (opcion == null) return;
 
-      // Mostrar indicador de carga
       if (context.mounted) {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => const Center(
-            child: CircularProgressIndicator(),
+          builder: (context) => Center(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primary),
+                  SizedBox(height: 16),
+                  Text('Procesando...', style: TextStyle(color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
           ),
         );
       }
 
       if (opcion == 'pdf') {
-        // Generar y descargar PDF con formato de ticket 80mm
         await EscPosService.descargarTicketPDF(factura);
-
         if (context.mounted) {
-          Navigator.pop(context); // Cerrar indicador de carga
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('PDF generado correctamente'),
-              backgroundColor: Colors.grey,
-            ),
-          );
+          Navigator.pop(context);
+          _mostrarSnackBar(context, 'PDF generado correctamente', isSuccess: true);
         }
       } else if (opcion == 'bluetooth') {
-        // Buscar impresoras Bluetooth
         List<BluetoothDevice> impresoras = await EscPosService.escanearImpresorasBluetooth();
 
         if (context.mounted) {
-          Navigator.pop(context); // Cerrar indicador de carga
+          Navigator.pop(context);
         }
 
         if (impresoras.isEmpty) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('No se encontraron impresoras Bluetooth'),
-                backgroundColor: Colors.grey,
-              ),
-            );
+            _mostrarSnackBar(context, 'No se encontraron impresoras Bluetooth', isError: true);
           }
           return;
         }
 
-        // Mostrar diálogo para seleccionar impresora
         if (context.mounted) {
           final impresoraSeleccionada = await showDialog<BluetoothDevice>(
             context: context,
             builder: (context) {
               return AlertDialog(
-                title: const Text('Seleccionar Impresora'),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.print, color: AppColors.primary, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text('Seleccionar Impresora'),
+                  ],
+                ),
                 content: SizedBox(
                   width: double.maxFinite,
                   child: ListView.builder(
@@ -247,11 +353,19 @@ class FacturaPage extends ConsumerWidget {
                     itemBuilder: (context, index) {
                       final impresora = impresoras[index];
                       return ListTile(
-                        leading: const Icon(Icons.print, color: Colors.blue),
-                        title: Text(impresora.platformName.isNotEmpty
-                            ? impresora.platformName
-                            : 'Impresora ${index + 1}'),
-                        subtitle: Text(impresora.remoteId.toString()),
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.print, color: AppColors.accent, size: 20),
+                        ),
+                        title: Text(
+                          impresora.platformName.isNotEmpty ? impresora.platformName : 'Impresora ${index + 1}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(impresora.remoteId.toString(), style: const TextStyle(fontSize: 12)),
                         onTap: () => Navigator.pop(context, impresora),
                       );
                     },
@@ -260,7 +374,7 @@ class FacturaPage extends ConsumerWidget {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancelar'),
+                    child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
                   ),
                 ],
               );
@@ -269,106 +383,266 @@ class FacturaPage extends ConsumerWidget {
 
           if (impresoraSeleccionada == null) return;
 
-          // Mostrar indicador de carga nuevamente
           if (context.mounted) {
             showDialog(
               context: context,
               barrierDismissible: false,
-              builder: (context) => const Center(
-                child: CircularProgressIndicator(),
-              ),
+              builder: (context) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
             );
           }
 
-          // Imprimir por Bluetooth
-          await EscPosService.imprimirTicketBluetoothConDispositivo(
-            factura,
-            impresoraSeleccionada,
-          );
+          await EscPosService.imprimirTicketBluetoothConDispositivo(factura, impresoraSeleccionada);
 
           if (context.mounted) {
-            Navigator.pop(context); // Cerrar indicador de carga
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Ticket enviado a impresora'),
-                backgroundColor: Colors.green,
-              ),
-            );
+            Navigator.pop(context);
+            _mostrarSnackBar(context, 'Ticket enviado a impresora', isSuccess: true);
           }
         }
       }
     } catch (e) {
       if (context.mounted) {
-        // Cerrar indicador de carga si está abierto
         Navigator.of(context).pop();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _mostrarSnackBar(context, 'Error: $e', isError: true);
       }
     }
+  }
+
+  void _mostrarOpcionesFactura(BuildContext context, WidgetRef ref, FacturaModel factura) {
+    final total = factura.items.fold(0.0, (sum, item) => sum + item.subtotal);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.receipt_long, color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          factura.nombreCliente,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '\$${_formatearPrecio(total)}',
+                          style: const TextStyle(fontSize: 14, color: AppColors.accent, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 24),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.print_outlined, color: AppColors.primary, size: 20),
+              ),
+              title: const Text('Imprimir / Descargar'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _descargarFacturaPOS(context, factura);
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.edit_outlined, color: AppColors.accent, size: 20),
+              ),
+              title: const Text('Editar factura'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _editarFactura(context, ref, factura);
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+              ),
+              title: const Text('Eliminar factura', style: TextStyle(color: AppColors.error)),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _eliminarFactura(context, ref, factura);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   void _mostrarMenuFlotante(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetContext) => SafeArea(
-        child: Wrap(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Encabezado
             Container(
-              padding: const EdgeInsets.all(16),
-              width: double.infinity,
-              child: const Text(
-                'Nueva Factura',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-
-            // Factura a Clientes
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Nueva Factura',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.shopping_cart),
-              title: const Text('Factura a Clientes'),
-              subtitle: const Text('Cliente registrado en el sistema'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.shopping_cart, color: AppColors.primary, size: 24),
+              ),
+              title: const Text('Factura a Clientes', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              subtitle: const Text('Cliente registrado en el sistema', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
               onTap: () async {
                 Navigator.pop(sheetContext);
                 await Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const CrearFacturaPage(),
-                  ),
+                  MaterialPageRoute(builder: (context) => const CrearFacturaPage()),
                 );
                 ref.invalidate(facturasProvider);
               },
             ),
-
-            // Factura Limpia
             ListTile(
-              leading: const Icon(Icons.person_add_outlined),
-              title: const Text('Factura Limpia'),
-              subtitle: const Text('Cliente ocasional sin registro'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person_add_outlined, color: AppColors.accent, size: 24),
+              ),
+              title: const Text('Factura Limpia', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              subtitle: const Text('Cliente ocasional sin registro', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
               onTap: () async {
                 Navigator.pop(sheetContext);
                 await Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const CrearFacturaLimpiaPage(),
-                  ),
+                  MaterialPageRoute(builder: (context) => const CrearFacturaLimpiaPage()),
                 );
                 ref.invalidate(facturasProvider);
               },
             ),
-
             const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateSelector(BuildContext context, WidgetRef ref, FechaState fechaState) {
+    return GestureDetector(
+      onTap: () => _seleccionarFecha(context, ref),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Icon(Icons.calendar_today, color: Colors.white, size: 14),
+              ),
+            ),
+            const SizedBox(width: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(
+                _formatearFecha(fechaState.fechaSeleccionada),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down, color: AppColors.primary, size: 20),
           ],
         ),
       ),
@@ -386,20 +660,16 @@ class FacturaPage extends ConsumerWidget {
     });
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Facturas',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        elevation: 1,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[800],
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        titleSpacing: 16,
+        title: _buildDateSelector(context, ref, fechaState),
         actions: [
           IconButton(
-            icon: const Icon(Icons.inventory_2_outlined),
+            icon: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
             onPressed: () {
               Navigator.push(
                 context,
@@ -414,7 +684,7 @@ class FacturaPage extends ConsumerWidget {
             tooltip: 'Ver resumen de productos',
           ),
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
             onPressed: () => _mostrarMenuFlotante(context, ref),
             tooltip: 'Nueva factura',
           ),
@@ -422,94 +692,79 @@ class FacturaPage extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          // ==================== SELECTOR DE FECHA ====================
+          // Resumen del día
           Container(
+            margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(16),
-            color: Colors.blue.shade50,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
               children: [
-                const Text(
-                  'Seleccionar Fecha',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.blue),
-                          borderRadius: BorderRadius.circular(8),
-                          color: Colors.white,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _formatearFecha(fechaState.fechaSeleccionada),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                            const Icon(Icons.calendar_today, color: Colors.blue),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _seleccionarFecha(context, ref),
-                      icon: const Icon(Icons.date_range),
-                      label: const Text('Cambiar'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Resumen del día
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Facturas: ${facturasFiltradas.length}',
-                        style: const TextStyle(fontSize: 12),
+                      const Text(
+                        'Facturas del día',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(height: 4),
                       Text(
-                        'Total: \$${_formatearPrecio(totalDia)}',
+                        '${facturasFiltradas.length}',
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: Colors.green,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                     ],
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 40,
+                  color: AppColors.border,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Total vendido',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '\$${_formatearPrecio(totalDia)}',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.accent,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
 
-          // ==================== LISTA DE FACTURAS ====================
+          // Lista de facturas
           Expanded(
             child: facturasAsync.when(
-              loading: () => const Center(
+              loading: () => Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
+                  children: const [
+                    CircularProgressIndicator(color: AppColors.primary),
                     SizedBox(height: 16),
-                    Text('Cargando facturas...'),
+                    Text('Cargando facturas...', style: TextStyle(color: AppColors.textSecondary)),
                   ],
                 ),
               ),
@@ -517,73 +772,147 @@ class FacturaPage extends ConsumerWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    const Icon(Icons.error_outline, size: 64, color: AppColors.error),
                     const SizedBox(height: 16),
-                    Text('Error: $err'),
+                    Text('Error: $err', style: const TextStyle(color: AppColors.error)),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => ref.invalidate(facturasProvider),
+                      child: const Text('Reintentar'),
+                    ),
                   ],
                 ),
               ),
               data: (facturas) {
                 if (facturasFiltradas.isEmpty) {
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.receipt,
-                        size: 80,
-                        color: Colors.grey[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No hay facturas para esta fecha',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[500],
-                          fontWeight: FontWeight.w500,
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.05),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.receipt_long, size: 64, color: AppColors.primary.withOpacity(0.3)),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Sin facturas',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'No hay facturas para esta fecha',
+                          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => _mostrarMenuFlotante(context, ref),
+                          icon: const Icon(Icons.add, size: 20),
+                          label: const Text('Nueva Factura'),
+                        ),
+                      ],
+                    ),
                   );
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                   itemCount: facturasFiltradas.length,
                   itemBuilder: (context, index) {
                     final factura = facturasFiltradas[index];
                     final total = factura.items.fold(0.0, (sum, item) => sum + item.subtotal);
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      child: ListTile(
-                        leading: const Icon(Icons.receipt, color: Colors.blue),
-                        title: Text(
-                          factura.nombreCliente,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Material(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => _mostrarOpcionesFactura(context, ref, factura),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Center(
+                                    child: Icon(Icons.receipt_long, color: AppColors.primary, size: 24),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        factura.nombreCliente,
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.access_time, size: 12, color: AppColors.textSecondary),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${factura.fecha.hour.toString().padLeft(2, '0')}:${factura.fecha.minute.toString().padLeft(2, '0')}',
+                                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Icon(Icons.inventory_2_outlined, size: 12, color: AppColors.textSecondary),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${factura.items.length} items',
+                                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '\$${_formatearPrecio(total)}',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.accent,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Hora: ${factura.fecha.hour.toString().padLeft(2, '0')}:${factura.fecha.minute.toString().padLeft(2, '0')}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            Text(
-                              'Productos: ${factura.items.length}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            Text(
-                              'Total: \$${_formatearPrecio(total)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () => _mostrarOpcionesFactura(context, ref, factura),
                       ),
                     );
                   },
@@ -592,88 +921,6 @@ class FacturaPage extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-      // ← ELIMINADO: floatingActionButton
-    );
-  }
-
-  void _mostrarOpcionesFactura(BuildContext context, WidgetRef ref, FacturaModel factura) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Wrap(
-          children: [
-            // Encabezado con datos básicos
-            Container(
-              padding: const EdgeInsets.all(16),
-              width: double.infinity,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    factura.nombreCliente,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    factura.direccionCliente,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.normal,
-                        color: Colors.grey),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    "Total: \$${_formatearPrecio(
-                      factura.items.fold(
-                        0.0,
-                            (s, item) => s + item.subtotal,
-                      ),
-                    )}",
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-
-            // Editar
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text("Editar factura"),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _editarFactura(context, ref, factura);
-              },
-            ),
-
-            ListTile(
-              leading: const Icon(Icons.download),
-              title: const Text("Comprobante"),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _descargarFacturaPOS(context, factura);
-              },
-            ),
-
-            // Eliminar
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text(
-                "Eliminar factura",
-                style: TextStyle(color: Colors.red),
-              ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _eliminarFactura(context, ref, factura);
-              },
-            ),
-          ],
-        ),
       ),
     );
   }

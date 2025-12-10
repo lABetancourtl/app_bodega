@@ -10,8 +10,7 @@ class LocationService {
 
   LocationService._internal();
 
-  /// <CHANGE> Obtener ubicación con MÁXIMA precisión posible
-  /// Toma múltiples lecturas y devuelve la más precisa
+  /// Obtener ubicación RÁPIDA con buena precisión (uso general)
   Future<Position?> obtenerUbicacionActual() async {
     try {
       // Verificar si el servicio de ubicación está habilitado
@@ -37,61 +36,30 @@ class LocationService {
         return null;
       }
 
-      // <CHANGE> Obtener múltiples lecturas y seleccionar la más precisa
-      Position? mejorPosicion;
-      const int maxIntentos = 3;
-      const double precisionAceptable = 10.0; // metros
+      // Obtener ubicación con buena precisión pero sin demoras excesivas
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: AndroidSettings(
+          accuracy: LocationAccuracy.high, // Cambiado de 'best' a 'high' para ser más rápido
+          distanceFilter: 0,
+          forceLocationManager: false,
+          intervalDuration: const Duration(milliseconds: 1000),
+        ),
+      ).timeout(const Duration(seconds: 8)); // Timeout reducido
 
-      for (int i = 0; i < maxIntentos; i++) {
-        try {
-          final position = await Geolocator.getCurrentPosition(
-            locationSettings: AndroidSettings(
-              accuracy: LocationAccuracy.best, // <CHANGE> Máxima precisión
-              distanceFilter: 0,
-              forceLocationManager: false,
-              intervalDuration: const Duration(milliseconds: 500),
-              useMSLAltitude: false,
-            ),
-          ).timeout(const Duration(seconds: 10));
+      print('[LocationService] Ubicación obtenida: ${position.latitude}, ${position.longitude} (±${position.accuracy.toStringAsFixed(1)}m)');
 
-          print('[LocationService] Lectura ${i + 1}: accuracy=${position.accuracy}m');
-
-          // Si es la primera lectura o es más precisa que la anterior
-          if (mejorPosicion == null || position.accuracy < mejorPosicion.accuracy) {
-            mejorPosicion = position;
-          }
-
-          // Si ya tenemos una precisión aceptable, salir del loop
-          if (position.accuracy <= precisionAceptable) {
-            print('[LocationService] Precisión aceptable alcanzada: ${position.accuracy}m');
-            break;
-          }
-
-          // Esperar un poco antes de la siguiente lectura
-          if (i < maxIntentos - 1) {
-            await Future.delayed(const Duration(milliseconds: 800));
-          }
-        } catch (e) {
-          print('[LocationService] Error en lectura ${i + 1}: $e');
-        }
-      }
-
-      if (mejorPosicion != null) {
-        print('[LocationService] Mejor ubicación: ${mejorPosicion.latitude}, ${mejorPosicion.longitude} (±${mejorPosicion.accuracy.toStringAsFixed(1)}m)');
-      }
-
-      return mejorPosicion;
+      return position;
     } catch (e) {
       print('[LocationService] Error obteniendo ubicación: $e');
       return null;
     }
   }
 
-  /// <CHANGE> Nueva función para obtener ubicación de alta precisión con callback de progreso
+  /// Obtener ubicación de MÁXIMA PRECISIÓN (solo cuando sea crítico)
   Future<Position?> obtenerUbicacionPrecisa({
     Function(double accuracy)? onProgress,
     double precisionObjetivo = 8.0, // metros
-    Duration timeout = const Duration(seconds: 20),
+    Duration timeout = const Duration(seconds: 5),
   }) async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -164,7 +132,7 @@ class LocationService {
     }
   }
 
-  /// Obtener última ubicación conocida (más rápido pero puede ser antigua)
+  /// Obtener última ubicación conocida (instantáneo)
   Future<Position?> obtenerUltimaUbicacionConocida() async {
     try {
       return await Geolocator.getLastKnownPosition();
@@ -174,17 +142,17 @@ class LocationService {
     }
   }
 
-  /// <CHANGE> Stream de ubicación con máxima precisión para seguimiento en tiempo real
+  /// Stream de ubicación para seguimiento en tiempo real
   Stream<Position> obtenerStreamUbicacion({
-    LocationAccuracy accuracy = LocationAccuracy.best,
-    int distanceFilter = 5, // <CHANGE> Actualizar cada 5 metros para más precisión
+    LocationAccuracy accuracy = LocationAccuracy.high,
+    int distanceFilter = 10,
   }) {
     return Geolocator.getPositionStream(
       locationSettings: AndroidSettings(
         accuracy: accuracy,
         distanceFilter: distanceFilter,
         forceLocationManager: false,
-        intervalDuration: const Duration(seconds: 1),
+        intervalDuration: const Duration(seconds: 2),
       ),
     );
   }
@@ -221,3 +189,5 @@ class LocationService {
     return await Geolocator.openAppSettings();
   }
 }
+
+/////////////////este es el bueno

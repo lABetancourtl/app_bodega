@@ -5,14 +5,26 @@ import 'package:app_bodega/app/model/factura_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/view/factura/carrito_productos_page.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 
 import '../barcode/barcode_scaner_page.dart';
+
+// ============= COLORES DEL TEMA =============
+class AppColors {
+  static const Color primary = Color(0xFF1E3A5F);
+  static const Color primaryLight = Color(0xFF2E5077);
+  static const Color accent = Color(0xFF00B894);
+  static const Color accentLight = Color(0xFFE8F8F5);
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color error = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+}
 
 // ============= PROVIDERS =============
 final categoriasProvider = FutureProvider<List<CategoriaModel>>((ref) async {
@@ -39,21 +51,15 @@ final productosPorCategoriaProvider = FutureProvider.family<List<ProductoModel>,
   return await dbHelper.obtenerProductosPorCategoria(categoriaId);
 });
 
-// Provider para el carrito temporal
 final carritoTemporalProvider = StateProvider<List<ItemFacturaModel>>((ref) => []);
-// <CHANGE> Provider para resaltar producto encontrado por código de barras
 final productoResaltadoProvider = StateProvider<String?>((ref) => null);
-// <CHANGE> Provider para el índice del producto a hacer scroll
 final productoIndexScrollProvider = StateProvider<int?>((ref) => null);
 
 // ============= PÁGINA =============
 class AgregarProductoFacturaPage extends ConsumerStatefulWidget {
   final List<ItemFacturaModel>? itemsIniciales;
 
-  const AgregarProductoFacturaPage({
-    super.key,
-    this.itemsIniciales,
-  });
+  const AgregarProductoFacturaPage({super.key, this.itemsIniciales});
 
   @override
   ConsumerState<AgregarProductoFacturaPage> createState() => _AgregarProductoFacturaPageState();
@@ -61,8 +67,6 @@ class AgregarProductoFacturaPage extends ConsumerStatefulWidget {
 
 class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFacturaPage> {
   late PageController _pageController;
-
-  // <CHANGE> Mapa de ScrollControllers para cada categoría
   final Map<int, ScrollController> _scrollControllers = {};
 
   ScrollController _getScrollController(int index) {
@@ -76,11 +80,9 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
-    // Precargar el carrito con items iniciales o limpiarlo
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.itemsIniciales != null && widget.itemsIniciales!.isNotEmpty) {
-        ref.read(carritoTemporalProvider.notifier).state =
-        List<ItemFacturaModel>.from(widget.itemsIniciales!);
+        ref.read(carritoTemporalProvider.notifier).state = List<ItemFacturaModel>.from(widget.itemsIniciales!);
       } else {
         ref.read(carritoTemporalProvider.notifier).state = [];
       }
@@ -104,45 +106,241 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
     );
   }
 
+  void _mostrarSnackBar(String mensaje, {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isSuccess ? Icons.check_circle : (isError ? Icons.error : Icons.info),
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(mensaje)),
+          ],
+        ),
+        backgroundColor: isSuccess ? AppColors.accent : (isError ? AppColors.error : AppColors.primary),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(milliseconds: 2000),
+      ),
+    );
+  }
+
   void _finalizarSeleccion() {
     final carrito = ref.read(carritoTemporalProvider);
-
     if (carrito.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No has agregado ningún producto'),
-          backgroundColor: Colors.black54,
-          duration: const Duration(milliseconds: 1300),
-        ),
-      );
+      _mostrarSnackBar('No has agregado ningún producto', isError: true);
       return;
     }
-
-    // Retornar todos los productos seleccionados
     Navigator.pop(context, carrito);
   }
 
   void _mostrarCarrito() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CarritoProductosPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const CarritoProductosPage()),
     ).then((resultado) {
-      // Si se retorna algo desde el carrito (finalizar), lo devolvemos
       if (resultado != null) {
         Navigator.pop(context, resultado);
       }
     });
   }
 
-  // Método para escanear código de barras
+  void _mostrarSelectorCategorias(List<CategoriaModel> categorias) {
+    final currentIndex = ref.read(categoriaIndexProvider);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.category, color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Seleccionar Categoría',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                  const Spacer(),
+                  Text('${categorias.length} categorías', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: categorias.length,
+                itemBuilder: (context, index) {
+                  final categoria = categorias[index];
+                  final isSelected = index == currentIndex;
+
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    leading: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.accent.withOpacity(0.15) : AppColors.background,
+                        borderRadius: BorderRadius.circular(12),
+                        border: isSelected ? Border.all(color: AppColors.accent, width: 2) : null,
+                      ),
+                      child: Center(
+                        child: Text(
+                          categoria.nombre.substring(0, 1).toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? AppColors.accent : AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      categoria.nombre,
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected ? AppColors.accent : AppColors.textPrimary,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(6)),
+                      child: const Icon(Icons.check, color: Colors.white, size: 16),
+                    )
+                        : const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      ref.read(categoriaIndexProvider.notifier).state = index;
+                      _pageController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategorySelector(List<CategoriaModel> categorias) {
+    final currentIndex = ref.watch(categoriaIndexProvider);
+    final currentCategory = categorias.isNotEmpty && currentIndex < categorias.length ? categorias[currentIndex] : null;
+
+    return GestureDetector(
+      onTap: () => _mostrarSelectorCategorias(categorias),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(8)),
+              child: Center(
+                child: Text(
+                  currentCategory?.nombre.substring(0, 1).toUpperCase() ?? '?',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 120),
+              child: Text(
+                currentCategory?.nombre ?? 'Categoría',
+                style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down, color: AppColors.primary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageIndicator(int totalPages, int currentPage) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text('${currentPage + 1}/$totalPages', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+        const SizedBox(width: 8),
+        Row(
+          children: List.generate(
+            totalPages > 5 ? 5 : totalPages,
+                (index) {
+              int dotIndex = index;
+              if (totalPages > 5) {
+                if (currentPage < 3) {
+                  dotIndex = index;
+                } else if (currentPage > totalPages - 3) {
+                  dotIndex = totalPages - 5 + index;
+                } else {
+                  dotIndex = currentPage - 2 + index;
+                }
+              }
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                width: dotIndex == currentPage ? 16 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: dotIndex == currentPage ? AppColors.primary : AppColors.border,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _escanearCodigoBarras() async {
     final resultado = await Navigator.push<String>(
       context,
-      MaterialPageRoute(
-        builder: (context) => const BarcodeScannerPage(), // Usar la clase pública
-      ),
+      MaterialPageRoute(builder: (context) => const BarcodeScannerPage()),
     );
 
     if (resultado != null && resultado.isNotEmpty) {
@@ -150,13 +348,23 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
     }
   }
 
-  // Método para buscar producto por código de barras
   Future<void> _buscarProductoPorCodigoBarras(String codigoBarras) async {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.primary),
+              SizedBox(height: 16),
+              Text('Buscando...', style: TextStyle(color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
       ),
     );
 
@@ -167,119 +375,78 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
       Navigator.pop(context);
 
       if (producto != null) {
-        // Vibración de éxito
         if (await Vibration.hasVibrator() ?? false) {
           Vibration.vibrate(pattern: [0, 100, 50, 100], intensities: [0, 200, 0, 255]);
         }
         final categoriasAsync = ref.read(categoriasProvider);
 
-        // Buscar en qué categoría está el producto
-        // final categoriasAsync = ref.read(categoriasProvider);
-
         categoriasAsync.whenData((categorias) async {
-          final indexCategoria = categorias.indexWhere(
-                (cat) => cat.id == producto.categoriaId,
-          );
+          final indexCategoria = categorias.indexWhere((cat) => cat.id == producto.categoriaId);
 
           if (indexCategoria != -1) {
             ref.read(categoriaIndexProvider.notifier).state = indexCategoria;
-            _pageController.animateToPage(
-              indexCategoria,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
+            _pageController.animateToPage(indexCategoria, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
 
-            // <CHANGE> Obtener el índice del producto para hacer scroll
             final productosEnCategoria = await dbHelper.obtenerProductosPorCategoria(producto.categoriaId);
             final productoIndex = productosEnCategoria.indexWhere((p) => p.id == producto.id);
             if (productoIndex != -1) {
               ref.read(productoIndexScrollProvider.notifier).state = productoIndex;
             }
 
-            // Resaltar el producto encontrado
             ref.read(productoResaltadoProvider.notifier).state = producto.id;
 
-            // Quitar el resaltado después de 2 segundos
-            Future.delayed(const Duration(milliseconds: 1500), () {
+            Future.delayed(const Duration(milliseconds: 2500), () {
               if (mounted) {
                 ref.read(productoResaltadoProvider.notifier).state = null;
               }
             });
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Producto encontrado: ${producto.nombre}'),
-                backgroundColor: Colors.black54,
-                duration: const Duration(milliseconds: 1300),
-              ),
-            );
+            _mostrarSnackBar('Producto encontrado: ${producto.nombre}', isSuccess: true);
           }
         });
       } else {
-        // Vibración de error
         if (await Vibration.hasVibrator() ?? false) {
           Vibration.vibrate(pattern: [0, 300, 100, 300], intensities: [0, 128, 0, 128]);
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No se encontró producto con código: $codigoBarras'),
-            backgroundColor: Colors.black54,
-            duration: const Duration(milliseconds: 1300),
-          ),
-        );
+        _mostrarSnackBar('No se encontró producto con código: $codigoBarras', isError: true);
       }
     } catch (e) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al buscar producto: $e'),
-          backgroundColor: Colors.black54,
-          duration: const Duration(milliseconds: 1300),
-        ),
-      );
+      _mostrarSnackBar('Error al buscar producto: $e', isError: true);
     }
   }
 
   Widget _construirListaProductos(List<ProductoModel> productos, List<CategoriaModel> categorias, int categoriaIndex) {
     if (productos.isEmpty) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.local_drink_outlined,
-            size: 80,
-            color: Colors.grey[300],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No hay productos en esta categoría',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[500],
-              fontWeight: FontWeight.w500,
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.05), shape: BoxShape.circle),
+              child: Icon(Icons.inventory_2_outlined, size: 64, color: AppColors.primary.withOpacity(0.3)),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            const Text('Sin productos', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            const Text('Esta categoría está vacía', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+          ],
+        ),
       );
     }
 
-    // <CHANGE> Obtener el ScrollController para esta categoría
     final scrollController = _getScrollController(categoriaIndex);
     final productoResaltado = ref.watch(productoResaltadoProvider);
     final productoIndexScroll = ref.watch(productoIndexScrollProvider);
 
-// <CHANGE> Hacer scroll automático cuando hay un producto resaltado
     if (productoResaltado != null && productoIndexScroll != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         const double itemHeight = 100.0;
         final double scrollPosition = productoIndexScroll * itemHeight;
 
         if (scrollController.hasClients) {
-          scrollController.animateTo(
-            scrollPosition,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-          );
+          scrollController.animateTo(scrollPosition, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
         }
 
         ref.read(productoIndexScrollProvider.notifier).state = null;
@@ -289,8 +456,8 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
     final carrito = ref.watch(carritoTemporalProvider);
 
     return ListView.builder(
-      controller: scrollController, // <CHANGE> Agregar controller
-      padding: const EdgeInsets.all(8),
+      controller: scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: productos.length,
       itemBuilder: (context, index) {
         final producto = productos[index];
@@ -308,7 +475,6 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
         );
 
         final estaEnCarrito = itemEnCarrito.productoId.isNotEmpty;
-
         final estaResaltado = productoResaltado == producto.id;
 
         return _ProductoCard(
@@ -318,17 +484,14 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
           estaResaltado: estaResaltado,
           onSelected: (item) {
             final carritoActual = ref.read(carritoTemporalProvider);
-            final indexExistente = carritoActual.indexWhere(
-                  (elemento) => elemento.productoId == item.productoId,
-            );
+            final indexExistente = carritoActual.indexWhere((elemento) => elemento.productoId == item.productoId);
 
             if (indexExistente != -1) {
               final nuevoCarrito = List<ItemFacturaModel>.from(carritoActual);
               nuevoCarrito[indexExistente] = item;
               ref.read(carritoTemporalProvider.notifier).state = nuevoCarrito;
             } else {
-              ref.read(carritoTemporalProvider.notifier).state =
-              List.from(carritoActual)..add(item);
+              ref.read(carritoTemporalProvider.notifier).state = List.from(carritoActual)..add(item);
             }
           },
         );
@@ -343,20 +506,27 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
     final carrito = ref.watch(carritoTemporalProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Agregar Productos'),
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        title: categoriasAsync.when(
+          loading: () => const Text('Cargando...', style: TextStyle(color: AppColors.textSecondary)),
+          error: (_, __) => const Text('Error'),
+          data: (categorias) => _buildCategorySelector(categorias),
+        ),
         actions: [
-          // Botón de escáner de código de barras
           IconButton(
-            icon: const Icon(Icons.qr_code_scanner),
-            tooltip: 'Escanear código de barras',
+            icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary),
+            tooltip: 'Escanear código',
             onPressed: _escanearCodigoBarras,
           ),
-          // Botón del carrito
           Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.shopping_cart),
+                icon: const Icon(Icons.shopping_cart, color: AppColors.textPrimary),
                 onPressed: _mostrarCarrito,
               ),
               if (carrito.isNotEmpty)
@@ -365,21 +535,11 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
                   top: 8,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
+                    decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Text(
                       '${carrito.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -389,12 +549,37 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
         ],
       ),
       body: categoriasAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        loading: () => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              CircularProgressIndicator(color: AppColors.primary),
+              SizedBox(height: 16),
+              Text('Cargando categorías...', style: TextStyle(color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+        error: (err, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: AppColors.error),
+              const SizedBox(height: 16),
+              Text('Error: $err', style: const TextStyle(color: AppColors.error)),
+            ],
+          ),
+        ),
         data: (categorias) {
           if (categorias.isEmpty) {
-            return const Center(
-              child: Text('No hay categorías disponibles'),
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.category_outlined, size: 64, color: AppColors.primary.withOpacity(0.3)),
+                  const SizedBox(height: 16),
+                  const Text('No hay categorías disponibles', style: TextStyle(color: AppColors.textSecondary)),
+                ],
+              ),
             );
           }
 
@@ -407,91 +592,16 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
 
           return Column(
             children: [
-              // Dropdown de categorías
+              // Indicador de página
               Container(
-                width: double.infinity,
-                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black54, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.white,
+                  color: AppColors.surface,
+                  border: Border(bottom: BorderSide(color: AppColors.border.withOpacity(0.5))),
                 ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton2<int>(
-                    value: categoriaIndex,
-                    isExpanded: true,
-                    hint: const Text('Selecciona una categoría'),
-                    items: categorias.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final categoria = entry.value;
-                      return DropdownMenuItem<int>(
-                        value: index,
-                        child: Row(
-                          children: [
-                            const Icon(Icons.category, color: Colors.black54, size: 20),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                categoria.nombre,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (int? nuevoIndex) {
-                      if (nuevoIndex != null) {
-                        ref.read(categoriaIndexProvider.notifier).state = nuevoIndex;
-                        _pageController.animateToPage(
-                          nuevoIndex,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                    },
-                    buttonStyleData: ButtonStyleData(
-                      height: 50,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.white12,
-                      ),
-                    ),
-                    iconStyleData: const IconStyleData(
-                      icon: Icon(Icons.arrow_drop_down),
-                      iconSize: 24,
-                      iconEnabledColor: Colors.black,
-                    ),
-                    dropdownStyleData: DropdownStyleData(
-                      maxHeight: 400,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.white,
-                      ),
-                      elevation: 8,
-                      direction: DropdownDirection.textDirection,
-                      offset: const Offset(0, -4),
-                      scrollbarTheme: ScrollbarThemeData(
-                        radius: const Radius.circular(40),
-                        thickness: MaterialStateProperty.all(6),
-                        thumbVisibility: MaterialStateProperty.all(true),
-                      ),
-                    ),
-                    menuItemStyleData: const MenuItemStyleData(
-                      height: 48,
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                  ),
-                ),
+                child: _buildPageIndicator(categorias.length, categoriaIndex),
               ),
-
-              // PageView con las listas de productos
+              // PageView
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
@@ -504,13 +614,13 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
                     final productosAsync = ref.watch(productosPorCategoriaProvider(categoria.id!));
 
                     return productosAsync.when(
-                      loading: () => const Center(
+                      loading: () => Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(),
+                          children: const [
+                            CircularProgressIndicator(color: AppColors.primary),
                             SizedBox(height: 16),
-                            Text('Cargando productos...'),
+                            Text('Cargando productos...', style: TextStyle(color: AppColors.textSecondary)),
                           ],
                         ),
                       ),
@@ -518,15 +628,13 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                            const Icon(Icons.error_outline, size: 64, color: AppColors.error),
                             const SizedBox(height: 16),
-                            Text('Error: $err'),
+                            Text('Error: $err', style: const TextStyle(color: AppColors.error)),
                           ],
                         ),
                       ),
-                      data: (productos) {
-                        return _construirListaProductos(productos, categorias, pageIndex);
-                      },
+                      data: (productos) => _construirListaProductos(productos, categorias, pageIndex),
                     );
                   },
                 ),
@@ -535,6 +643,35 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
           );
         },
       ),
+      bottomNavigationBar: carrito.isNotEmpty
+          ? Container(
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + MediaQuery.of(context).padding.bottom),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+        ),
+        child: ElevatedButton(
+          onPressed: _finalizarSeleccion,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.check, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(
+                'Agregar ${carrito.length} ${carrito.length == 1 ? "producto" : "productos"}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      )
+          : null,
     );
   }
 }
@@ -552,120 +689,8 @@ class _ProductoCard extends StatelessWidget {
     required this.onSelected,
     this.estaEnCarrito = false,
     this.itemEnCarrito,
-    this.estaResaltado = false, 
+    this.estaResaltado = false,
   });
-
-  Widget _construirImagenProducto(String? imagenPath) {
-    if (imagenPath != null && imagenPath.isNotEmpty && imagenPath.startsWith('http')) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          imagenPath,
-          fit: BoxFit.cover,
-          width: 60,
-          height: 60,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Container(
-              width: 60,
-              height: 60,
-              alignment: Alignment.center,
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                    loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return _imagenPorDefecto();
-          },
-        ),
-      );
-    }
-    return _imagenPorDefecto();
-  }
-
-  Widget _imagenPorDefecto() {
-    return Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        color: Colors.blue[100],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(
-        Icons.local_drink,
-        color: Colors.blue[600],
-        size: 32,
-      ),
-    );
-  }
-
-  void _verImagenProducto(BuildContext context, ProductoModel producto) {
-    if (producto.imagenPath != null && producto.imagenPath!.isNotEmpty) {
-      if (producto.imagenPath!.startsWith('http')) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Imagen del Producto'),
-                centerTitle: true,
-              ),
-              body: Center(
-                child: InteractiveViewer(
-                  boundaryMargin: const EdgeInsets.all(20),
-                  minScale: 0.5,
-                  maxScale: 4,
-                  child: Image.network(
-                    producto.imagenPath!,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-        return;
-      } else {
-        final file = File(producto.imagenPath!);
-        if (file.existsSync()) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => Scaffold(
-                appBar: AppBar(
-                  title: const Text('Imagen del Producto'),
-                  centerTitle: true,
-                ),
-                body: Center(
-                  child: InteractiveViewer(
-                    boundaryMargin: const EdgeInsets.all(20),
-                    minScale: 0.5,
-                    maxScale: 4,
-                    child: Image.file(
-                      file,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-          return;
-        }
-      }
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text('Este producto no tiene imagen',),
-          backgroundColor: Colors.black54,
-          duration: const Duration(milliseconds: 1300),
-      ),
-    );
-  }
 
   String _formatearPrecio(double precio) {
     final precioInt = precio.toInt();
@@ -675,28 +700,69 @@ class _ProductoCard extends StatelessWidget {
     );
   }
 
-  void _mostrarDialogoCantidad(BuildContext context, ProductoModel producto) {
-    final TextEditingController cantidadTotalController = TextEditingController();
-    final Map<String, TextEditingController> controllersPorSabor = {};
-    final Map<String, int> cantidadPorSabor = {};
-
-    if (estaEnCarrito && itemEnCarrito != null) {
-      if (producto.sabores.length == 1) {
-        cantidadTotalController.text = itemEnCarrito!.cantidadTotal.toString();
+  Widget _construirImagenProducto(String? imagenPath, {double size = 56}) {
+    if (imagenPath != null && imagenPath.isNotEmpty) {
+      if (imagenPath.startsWith('http')) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            imagenPath,
+            fit: BoxFit.cover,
+            width: size,
+            height: size,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return _imagenPlaceholder(size);
+            },
+            errorBuilder: (context, error, stackTrace) => _imagenPorDefecto(size),
+          ),
+        );
       } else {
-        for (var sabor in producto.sabores) {
-          final cantidadGuardada = itemEnCarrito!.cantidadPorSabor[sabor] ?? 0;
-          cantidadPorSabor[sabor] = cantidadGuardada;
-          controllersPorSabor[sabor] = TextEditingController(
-            text: cantidadGuardada.toString(),
+        final file = File(imagenPath);
+        if (file.existsSync()) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(file, fit: BoxFit.cover, width: size, height: size),
           );
         }
       }
-    } else {
-      for (var sabor in producto.sabores) {
-        cantidadPorSabor[sabor] = 0;
-        controllersPorSabor[sabor] = TextEditingController(text: '0');
-      }
+    }
+    return _imagenPorDefecto(size);
+  }
+
+  Widget _imagenPlaceholder(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(12)),
+      child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))),
+    );
+  }
+
+  Widget _imagenPorDefecto(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary.withOpacity(0.1), AppColors.accent.withOpacity(0.1)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(Icons.inventory_2_outlined, size: size * 0.4, color: AppColors.primary),
+    );
+  }
+
+  void _mostrarDialogoAgregar(BuildContext context) {
+    final TextEditingController cantidadTotalController = TextEditingController(text: '0');
+    final Map<String, TextEditingController> controllersPorSabor = {};
+    final Map<String, int> cantidadPorSabor = {};
+
+    for (var sabor in producto.sabores) {
+      controllersPorSabor[sabor] = TextEditingController(text: '0');
+      cantidadPorSabor[sabor] = 0;
     }
 
     int calcularTotal() {
@@ -707,60 +773,47 @@ class _ProductoCard extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-            ),
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(color: Colors.grey[300]!),
-                      ),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 12),
+                      decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
                     ),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.all(20),
                     child: Row(
                       children: [
+                        _construirImagenProducto(producto.imagenPath, size: 56),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            producto.nombre,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
+                              Text('\$${_formatearPrecio(producto.precio)} c/u', style: const TextStyle(fontSize: 14, color: AppColors.accent)),
+                            ],
                           ),
                         ),
-                        if (estaEnCarrito)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            child: const Text(
-                              'Editando',
-                              style: TextStyle(
-                                color: Colors.black45,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                   ),
-                  // Content
+                  const Divider(height: 1),
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -769,62 +822,26 @@ class _ProductoCard extends StatelessWidget {
                           TextField(
                             controller: cantidadTotalController,
                             keyboardType: TextInputType.number,
-                            autofocus: !estaEnCarrito,
+                            autofocus: true,
                             decoration: InputDecoration(
                               labelText: 'Cantidad',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                              labelStyle: const TextStyle(color: AppColors.textSecondary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 2),
                               ),
-                              prefixIcon: const Icon(Icons.inventory),
+                              prefixIcon: const Icon(Icons.inventory, color: AppColors.primary),
                             ),
+                            onTap: () {
+                              if (cantidadTotalController.text == '0') cantidadTotalController.clear();
+                            },
                             onChanged: (_) => setState(() {}),
                           ),
                           const SizedBox(height: 16),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              '${int.tryParse(cantidadTotalController.text) ?? 0} unidades',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.blue.shade200),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'TOTAL:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                Text(
-                                  '\$${_formatearPrecio((int.tryParse(cantidadTotalController.text) ?? 0) * producto.precio)}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    color: Colors.blue.shade700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ],
                         if (producto.sabores.length > 1) ...[
-                          const Text(
-                            'Distribuir por sabor:',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
+                          const Text('Distribuir por sabor:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
                           const SizedBox(height: 16),
                           ...producto.sabores.map((sabor) {
                             final controller = controllersPorSabor[sabor]!;
@@ -832,12 +849,7 @@ class _ProductoCard extends StatelessWidget {
                               padding: const EdgeInsets.only(bottom: 12),
                               child: Row(
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      sabor,
-                                      style: const TextStyle(fontSize: 15),
-                                    ),
-                                  ),
+                                  Expanded(child: Text(sabor, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary))),
                                   SizedBox(
                                     width: 80,
                                     child: TextField(
@@ -845,23 +857,19 @@ class _ProductoCard extends StatelessWidget {
                                       keyboardType: TextInputType.number,
                                       textAlign: TextAlign.center,
                                       decoration: InputDecoration(
-                                        border: OutlineInputBorder(
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        focusedBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
+                                          borderSide: const BorderSide(color: AppColors.primary, width: 2),
                                         ),
                                         isDense: true,
-                                        contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 12,
-                                        ),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                                       ),
                                       onTap: () {
-                                        if (controller.text == '0') {
-                                          controller.clear();
-                                        }
+                                        if (controller.text == '0') controller.clear();
                                       },
                                       onChanged: (value) {
-                                        final cantidad = int.tryParse(value) ?? 0;
-                                        cantidadPorSabor[sabor] = cantidad;
+                                        cantidadPorSabor[sabor] = int.tryParse(value) ?? 0;
                                         setState(() {});
                                       },
                                     ),
@@ -871,59 +879,56 @@ class _ProductoCard extends StatelessWidget {
                             );
                           }).toList(),
                           const Divider(height: 24),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              '${calcularTotal()} unidades',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.blue.shade200),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'TOTAL:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                Text(
-                                  '\$${_formatearPrecio(calcularTotal() * producto.precio)}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    color: Colors.blue.shade700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ],
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.accentLight,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    producto.sabores.length == 1
+                                        ? '${int.tryParse(cantidadTotalController.text) ?? 0} unidades'
+                                        : '${calcularTotal()} unidades',
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                  ),
+                                  const Text('TOTAL:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                                ],
+                              ),
+                              Text(
+                                producto.sabores.length == 1
+                                    ? '\$${_formatearPrecio((int.tryParse(cantidadTotalController.text) ?? 0) * producto.precio)}'
+                                    : '\$${_formatearPrecio(calcularTotal() * producto.precio)}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: AppColors.accent),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  // Actions
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         Expanded(
                           child: TextButton(
                             onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancelar'),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: const BorderSide(color: AppColors.border),
+                              ),
+                            ),
+                            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -932,24 +937,10 @@ class _ProductoCard extends StatelessWidget {
                             onPressed: () {
                               int cantidadTotal;
                               if (producto.sabores.length == 1) {
-                                if (cantidadTotalController.text.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Por favor ingresa la cantidad'),
-                                      backgroundColor: Colors.black54,
-                                      duration: const Duration(milliseconds: 1300),
-                                    ),
-                                  );
-                                  return;
-                                }
-                                cantidadTotal = int.parse(cantidadTotalController.text);
+                                cantidadTotal = int.tryParse(cantidadTotalController.text) ?? 0;
                                 if (cantidadTotal <= 0) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text('La cantidad debe ser mayor a 0'),
-                                        backgroundColor: Colors.black54,
-                                        duration: const Duration(milliseconds: 1300),
-                                    ),
+                                    const SnackBar(content: Text('La cantidad debe ser mayor a 0')),
                                   );
                                   return;
                                 }
@@ -957,35 +948,44 @@ class _ProductoCard extends StatelessWidget {
                                 cantidadTotal = calcularTotal();
                                 if (cantidadTotal <= 0) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Debes agregar al menos una unidad'),
-                                      backgroundColor: Colors.black54,
-                                      duration: const Duration(milliseconds: 1300),
-                                    ),
+                                    const SnackBar(content: Text('Debes agregar al menos una unidad')),
                                   );
                                   return;
                                 }
                               }
-                              final itemFactura = ItemFacturaModel(
+                              final nuevoItem = ItemFacturaModel(
                                 productoId: producto.id!,
                                 nombreProducto: producto.nombre,
                                 precioUnitario: producto.precio,
                                 cantidadTotal: cantidadTotal,
-                                cantidadPorSabor: producto.sabores.length > 1
-                                    ? cantidadPorSabor
-                                    : {producto.sabores[0]: cantidadTotal},
+                                cantidadPorSabor: producto.sabores.length > 1 ? cantidadPorSabor : {producto.sabores[0]: cantidadTotal},
                                 tieneSabores: producto.sabores.length > 1,
                               );
+                              onSelected(nuevoItem);
                               Navigator.pop(context);
-                              onSelected(itemFactura);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                                      const SizedBox(width: 12),
+                                      Text('${producto.nombre} agregado'),
+                                    ],
+                                  ),
+                                  backgroundColor: AppColors.accent,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  margin: const EdgeInsets.all(16),
+                                  duration: const Duration(milliseconds: 1500),
+                                ),
+                              );
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
+                              backgroundColor: AppColors.accent,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: Text(
-                              estaEnCarrito ? 'Actualizar' : 'Agregar',
-                              style: const TextStyle(color: Colors.white),
-                            ),
+                            child: const Text('Agregar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -1004,125 +1004,90 @@ class _ProductoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: estaResaltado
-            ? [
-          BoxShadow(
-            color: Colors.green.withOpacity(0.6),
-            blurRadius: 12,
-            spreadRadius: 2,
-          ),
-        ]
-            : null,
-      ),
-      child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Container(
-          child: Column(
-            children: [
-              ListTile(
-                leading: Stack(
-                  children: [
-                    _construirImagenProducto(producto.imagenPath),
-                    if (estaEnCarrito)
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            color: Colors.white,
-                            size: 12,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                title: Text(
-                  producto.nombre,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Precio: \$${_formatearPrecio(producto.precio)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (producto.cantidadPorPaca != null)
-                      Text(
-                        'Cantidad por paca: ${producto.cantidadPorPaca}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                  ],
-                ),
-                trailing: Icon(
-                  estaEnCarrito ? Icons.edit : Icons.add_shopping_cart,
-                  color: estaEnCarrito ? Colors.green : Colors.black54,
-                ),
-                onTap: () => _mostrarDialogoCantidad(context, producto),
-                onLongPress: () => _verImagenProducto(context, producto),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: estaResaltado ? AppColors.accentLight : AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        elevation: estaResaltado ? 4 : 0,
+        shadowColor: estaResaltado ? AppColors.accent.withOpacity(0.3) : Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _mostrarDialogoAgregar(context),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: estaEnCarrito ? AppColors.accent : (estaResaltado ? AppColors.accent : AppColors.border),
+                width: estaEnCarrito || estaResaltado ? 2 : 1,
               ),
-              if (estaEnCarrito && itemEnCarrito != null)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            ),
+            child: Row(
+              children: [
+                _construirImagenProducto(producto.imagenPath),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        producto.nombre,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      if (producto.sabores.isNotEmpty)
+                        Text(
+                          producto.sabores.join(' • '),
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(
-                            Icons.shopping_cart,
-                            size: 14,
-                            color: Colors.green.shade700,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${itemEnCarrito!.cantidadTotal} en carrito',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.green.shade700,
-                              fontWeight: FontWeight.w600,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '\$${_formatearPrecio(producto.precio)}',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accent),
                             ),
                           ),
+                          if (estaEnCarrito && itemEnCarrito != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
+                              child: Text(
+                                '${itemEnCarrito!.cantidadTotal} uds',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                            ),
+                          ],
                         ],
-                      ),
-                      Text(
-                        'Subtotal: \$${_formatearPrecio(itemEnCarrito!.subtotal)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green.shade800,
-                          fontWeight: FontWeight.w600,
-                        ),
                       ),
                     ],
                   ),
                 ),
-            ],
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: estaEnCarrito ? AppColors.accent : AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    estaEnCarrito ? Icons.check : Icons.add,
+                    color: estaEnCarrito ? Colors.white : AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

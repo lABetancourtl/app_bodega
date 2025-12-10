@@ -4,10 +4,24 @@ import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:app_bodega/app/view/barcode/barcode_scaner_page.dart';
 
 import '../../service/cloudinary_helper.dart';
+
+// ============= COLORES DEL TEMA =============
+class AppColors {
+  static const Color primary = Color(0xFF1E3A5F);
+  static const Color primaryLight = Color(0xFF2E5077);
+  static const Color accent = Color(0xFF00B894);
+  static const Color accentLight = Color(0xFFE8F8F5);
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color error = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+}
 
 class CrearProductoPage extends StatefulWidget {
   final List<CategoriaModel> categorias;
@@ -31,8 +45,6 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
 
   CategoriaModel? _categoriaSeleccionada;
   List<TextEditingController> _saborControllers = [TextEditingController()];
-
-  // ← NUEVO: Mapa para guardar códigos de barras por sabor
   Map<String, String> _codigosPorSabor = {};
 
   @override
@@ -52,6 +64,29 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  void _mostrarSnackBar(String mensaje, {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isSuccess ? Icons.check_circle : (isError ? Icons.error : Icons.info),
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(mensaje)),
+          ],
+        ),
+        backgroundColor: isSuccess ? AppColors.accent : (isError ? AppColors.error : AppColors.primary),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(milliseconds: 2000),
+      ),
+    );
   }
 
   void _agregarSabor() {
@@ -86,9 +121,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al tomar la foto')),
-        );
+        _mostrarSnackBar('Error al tomar la foto', isError: true);
       }
     }
   }
@@ -107,9 +140,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al seleccionar la imagen')),
-        );
+        _mostrarSnackBar('Error al seleccionar la imagen', isError: true);
       }
     }
   }
@@ -117,43 +148,104 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
   void _mostrarOpcionesImagen() {
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.image, color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Imagen del Producto',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Tomar foto'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.camera_alt, color: AppColors.primary, size: 24),
+              ),
+              title: const Text('Tomar foto', style: TextStyle(fontWeight: FontWeight.w600)),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 _tomarFoto();
               },
             ),
             ListTile(
-              leading: const Icon(Icons.image),
-              title: const Text('Seleccionar de galería'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.photo_library, color: AppColors.accent, size: 24),
+              ),
+              title: const Text('Seleccionar de galería', style: TextStyle(fontWeight: FontWeight.w600)),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 _seleccionarDelGalerista();
               },
             ),
             if (_imagenSeleccionada != null)
               ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Eliminar imagen', style: TextStyle(color: Colors.red)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.delete, color: AppColors.error, size: 24),
+                ),
+                title: const Text('Eliminar imagen', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.error)),
+                trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   setState(() {
                     _imagenSeleccionada = null;
                   });
                 },
               ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
-  // ← NUEVO: Escanear código para un sabor específico
   Future<void> _escanearCodigoParaSabor(String sabor) async {
     final resultado = await Navigator.push(
       context,
@@ -168,161 +260,212 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Código "$resultado" asignado a sabor "$sabor"')),
-        );
+        _mostrarSnackBar('Código "$resultado" asignado a sabor "$sabor"', isSuccess: true);
       }
     }
   }
 
-  // ← NUEVO: Mostrar diálogo para gestionar códigos de barras
   void _gestionarCodigosBarras() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => StatefulBuilder(
+      builder: (sheetContext) => StatefulBuilder(
         builder: (context, setModalState) {
           return Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom,
             ),
             child: SingleChildScrollView(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 12, left: 0, right: 0),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
                       children: [
-                        const Icon(Icons.qr_code, color: Colors.blue),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.qr_code, color: AppColors.primary, size: 24),
+                        ),
                         const SizedBox(width: 12),
                         const Expanded(
-                          child: Text(
-                            'Códigos de Barras por Sabor',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
-                    ),
-                    const Divider(),
-                    const SizedBox(height: 8),
-
-                    if (_saborControllers.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          'Primero agrega sabores al producto',
-                          style: TextStyle(color: Colors.grey),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-
-                    ..._saborControllers.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final controller = entry.value;
-                      final sabor = controller.text.trim();
-
-                      if (sabor.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-
-                      final tieneCodigo = _codigosPorSabor.containsKey(sabor);
-                      final codigo = _codigosPorSabor[sabor];
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: tieneCodigo ? Colors.green : Colors.grey,
-                            child: Icon(
-                              tieneCodigo ? Icons.check : Icons.qr_code_scanner,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                          title: Text(
-                            sabor,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            tieneCodigo
-                                ? 'Código: $codigo'
-                                : 'Sin código asignado',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: tieneCodigo ? Colors.green : Colors.grey,
-                            ),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              IconButton(
-                                icon: Icon(
-                                  tieneCodigo ? Icons.edit : Icons.add_a_photo,
-                                  color: Colors.blue,
-                                ),
-                                onPressed: () async {
-                                  Navigator.pop(context);
-                                  await _escanearCodigoParaSabor(sabor);
-                                  _gestionarCodigosBarras();
-                                },
-                                tooltip: tieneCodigo ? 'Cambiar código' : 'Escanear código',
+                              Text(
+                                'Códigos de Barras por Sabor',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                               ),
-                              if (tieneCodigo)
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  onPressed: () {
-                                    setModalState(() {
-                                      _codigosPorSabor.remove(sabor);
-                                    });
-                                    setState(() {});
-                                  },
-                                  tooltip: 'Eliminar código',
-                                ),
+                              Text(
+                                'Asigna códigos únicos a cada sabor',
+                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
                             ],
                           ),
                         ),
-                      );
-                    }).toList(),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                          onPressed: () => Navigator.pop(sheetContext),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
 
-                    const SizedBox(height: 16),
+                  if (_saborControllers.isEmpty || _saborControllers.every((c) => c.text.trim().isEmpty))
+                    Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.info_outline, size: 48, color: AppColors.textSecondary.withOpacity(0.3)),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Primero agrega sabores al producto',
+                              style: TextStyle(color: AppColors.textSecondary),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
 
-                    Container(
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: _saborControllers.asMap().entries.map((entry) {
+                        final controller = entry.value;
+                        final sabor = controller.text.trim();
+
+                        if (sabor.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+
+                        final tieneCodigo = _codigosPorSabor.containsKey(sabor);
+                        final codigo = _codigosPorSabor[sabor];
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: tieneCodigo ? AppColors.accent : AppColors.border),
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            leading: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: tieneCodigo ? AppColors.accent : AppColors.textSecondary,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                tieneCodigo ? Icons.check : Icons.qr_code_scanner,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                            title: Text(
+                              sabor,
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                            ),
+                            subtitle: Text(
+                              tieneCodigo ? 'Código: $codigo' : 'Sin código asignado',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: tieneCodigo ? AppColors.accent : AppColors.textSecondary,
+                              ),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    tieneCodigo ? Icons.edit : Icons.add_a_photo,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                  onPressed: () async {
+                                    Navigator.pop(sheetContext);
+                                    await _escanearCodigoParaSabor(sabor);
+                                    _gestionarCodigosBarras();
+                                  },
+                                  tooltip: tieneCodigo ? 'Cambiar código' : 'Escanear código',
+                                ),
+                                if (tieneCodigo)
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: AppColors.error, size: 20),
+                                    onPressed: () {
+                                      setModalState(() {
+                                        _codigosPorSabor.remove(sabor);
+                                      });
+                                      setState(() {});
+                                    },
+                                    tooltip: 'Eliminar código',
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.shade200),
+                        color: AppColors.primary.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                          const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
                           const SizedBox(width: 12),
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Asigna un código de barras único a cada sabor del producto',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.blue.shade900,
-                              ),
+                              style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
             ),
           );
@@ -343,9 +486,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
         } catch (e) {
           if (mounted) {
             setState(() => _subiendoImagen = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error al subir imagen: $e')),
-            );
+            _mostrarSnackBar('Error al subir imagen: $e', isError: true);
           }
           return;
         }
@@ -353,9 +494,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
         if (imagenUrl == null) {
           if (mounted) {
             setState(() => _subiendoImagen = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No se pudo obtener URL de la imagen')),
-            );
+            _mostrarSnackBar('No se pudo obtener URL de la imagen', isError: true);
           }
           return;
         }
@@ -370,7 +509,11 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
           .where((sabor) => sabor.isNotEmpty)
           .toList();
 
-      // Limpiar códigos de sabores que ya no existen
+      if (sabores.isEmpty) {
+        _mostrarSnackBar('Por favor ingresa al menos un sabor', isError: true);
+        return;
+      }
+
       final Map<String, String> codigosFinales = {};
       for (var sabor in sabores) {
         if (_codigosPorSabor.containsKey(sabor)) {
@@ -383,11 +526,9 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
         categoriaId: _categoriaSeleccionada!.id!,
         sabores: sabores,
         precio: double.parse(_precioController.text),
-        cantidadPorPaca: _cantidadPacaController.text.isEmpty
-            ? null
-            : int.parse(_cantidadPacaController.text),
+        cantidadPorPaca: _cantidadPacaController.text.isEmpty ? null : int.parse(_cantidadPacaController.text),
         imagenPath: imagenUrl,
-        codigosPorSabor: codigosFinales.isEmpty ? null : codigosFinales, // ← NUEVO
+        codigosPorSabor: codigosFinales.isEmpty ? null : codigosFinales,
       );
 
       if (mounted) {
@@ -396,257 +537,375 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
     }
   }
 
+  InputDecoration _buildInputDecoration({
+    required String label,
+    String? hint,
+    required IconData icon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: const TextStyle(color: AppColors.textSecondary),
+      hintStyle: TextStyle(color: AppColors.textSecondary.withOpacity(0.5)),
+      prefixIcon: Icon(icon, color: AppColors.primary),
+      filled: true,
+      fillColor: AppColors.surface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error, width: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Crear Producto'),
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        title: const Text(
+          'Crear Producto',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Sección de imagen
-              GestureDetector(
-                onTap: _mostrarOpcionesImagen,
-                child: Container(
-                  width: double.infinity,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blue, width: 2),
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.grey[100],
-                  ),
-                  child: _imagenSeleccionada != null
-                      ? ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.file(
-                      _imagenSeleccionada!,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                      : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.add_a_photo,
-                        size: 48,
-                        color: Colors.blue[300],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Toca para agregar imagen',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Categoría
-              DropdownButtonFormField<CategoriaModel>(
-                value: _categoriaSeleccionada,
-                decoration: InputDecoration(
-                  labelText: 'Categoría',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.category),
-                ),
-                items: widget.categorias.map((categoria) {
-                  return DropdownMenuItem(
-                    value: categoria,
-                    child: Text(categoria.nombre),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _categoriaSeleccionada = value;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Nombre del Producto
-              TextFormField(
-                controller: _nombreController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre del Producto',
-                  hintText: 'Ej: Coca Cola',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.local_drink),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingresa el nombre del producto';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Precio
-              TextFormField(
-                controller: _precioController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: 'Precio Unitario',
-                  hintText: 'Ej: 1500',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.attach_money),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingresa el precio';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Por favor ingresa un precio válido';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Cantidad por Paca
-              TextFormField(
-                controller: _cantidadPacaController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Cantidad por Paca (Opcional)',
-                  hintText: 'Ej: 24',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(Icons.inventory),
-                ),
-                validator: (value) {
-                  if (value != null && value.isNotEmpty) {
-                    if (int.tryParse(value) == null) {
-                      return 'Por favor ingresa una cantidad válida';
-                    }
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // Sabores
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Sabores',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  if (_saborControllers.length < 10)
-                    IconButton(
-                      icon: const Icon(Icons.add_circle, color: Colors.blue),
-                      onPressed: _agregarSabor,
-                      tooltip: 'Agregar sabor',
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _saborControllers.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _saborControllers[index],
-                            decoration: InputDecoration(
-                              labelText: _saborControllers.length == 1
-                                  ? 'Sabor Único'
-                                  : 'Sabor ${index + 1}',
-                              hintText: 'Ej: Fresa',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            onChanged: (_) => setState(() {}),
-                          ),
+                  // Sección de imagen
+                  GestureDetector(
+                    onTap: _mostrarOpcionesImagen,
+                    child: Container(
+                      width: double.infinity,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.primary, width: 2),
+                        borderRadius: BorderRadius.circular(16),
+                        color: AppColors.surface,
+                      ),
+                      child: _imagenSeleccionada != null
+                          ? ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.file(
+                          _imagenSeleccionada!,
+                          fit: BoxFit.cover,
                         ),
-                        if (_saborControllers.length > 1)
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _eliminarSabor(index),
+                      )
+                          : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.add_a_photo, size: 32, color: AppColors.primary),
                           ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Toca para agregar imagen',
+                            style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Categoría
+                  DropdownButtonFormField<CategoriaModel>(
+                    value: _categoriaSeleccionada,
+                    decoration: _buildInputDecoration(
+                      label: 'Categoría',
+                      icon: Icons.category,
+                    ),
+                    dropdownColor: AppColors.surface,
+                    items: widget.categorias.map((categoria) {
+                      return DropdownMenuItem(
+                        value: categoria,
+                        child: Text(categoria.nombre, style: const TextStyle(color: AppColors.textPrimary)),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _categoriaSeleccionada = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Nombre del Producto
+                  TextFormField(
+                    controller: _nombreController,
+                    decoration: _buildInputDecoration(
+                      label: 'Nombre del Producto',
+                      hint: 'Ej: Coca Cola',
+                      icon: Icons.local_drink,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor ingresa el nombre del producto';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Precio
+                  TextFormField(
+                    controller: _precioController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: _buildInputDecoration(
+                      label: 'Precio Unitario',
+                      hint: 'Ej: 1500',
+                      icon: Icons.attach_money,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor ingresa el precio';
+                      }
+                      if (double.tryParse(value) == null) {
+                        return 'Por favor ingresa un precio válido';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Cantidad por Paca
+                  TextFormField(
+                    controller: _cantidadPacaController,
+                    keyboardType: TextInputType.number,
+                    decoration: _buildInputDecoration(
+                      label: 'Cantidad por Paca (Opcional)',
+                      hint: 'Ej: 24',
+                      icon: Icons.inventory,
+                    ),
+                    validator: (value) {
+                      if (value != null && value.isNotEmpty) {
+                        if (int.tryParse(value) == null) {
+                          return 'Por favor ingresa una cantidad válida';
+                        }
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Sabores
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.local_cafe, color: AppColors.primary, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Sabores',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                ),
+                              ],
+                            ),
+                            if (_saborControllers.length < 10)
+                              IconButton(
+                                icon: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.add, color: Colors.white, size: 20),
+                                ),
+                                onPressed: _agregarSabor,
+                                tooltip: 'Agregar sabor',
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _saborControllers.length,
+                          itemBuilder: (context, index) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${index + 1}',
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _saborControllers[index],
+                                      decoration: InputDecoration(
+                                        hintText: 'Ej: Natural, Limón',
+                                        hintStyle: TextStyle(color: AppColors.textSecondary.withOpacity(0.5)),
+                                        filled: true,
+                                        fillColor: AppColors.background,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                                        ),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                      ),
+                                      validator: (value) {
+                                        if (index == 0 && (value == null || value.isEmpty)) {
+                                          return 'Ingresa al menos un sabor';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                  if (_saborControllers.length > 1)
+                                    IconButton(
+                                      icon: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.error.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Icons.close, color: AppColors.error, size: 18),
+                                      ),
+                                      onPressed: () => _eliminarSabor(index),
+                                      tooltip: 'Eliminar sabor',
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
-                  );
-                },
-              ),
+                  ),
+                  const SizedBox(height: 16),
 
-              // ← NUEVO: Botón para gestionar códigos de barras
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _gestionarCodigosBarras,
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Códigos de Barras por Sabor'),
-                      if (_codigosPorSabor.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${_codigosPorSabor.length}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                  // Botón Códigos de Barras
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _gestionarCodigosBarras,
+                      icon: const Icon(Icons.qr_code, size: 20),
+                      label: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Gestionar Códigos de Barras'),
+                          if (_codigosPorSabor.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${_codigosPorSabor.length}',
+                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
                             ),
-                          ),
-                        ),
-                    ],
+                          ],
+                        ],
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: AppColors.primary, width: 2),
+                        foregroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.all(16),
-                    side: const BorderSide(color: Colors.blue, width: 2),
-                  ),
-                ),
-              ),
+                  const SizedBox(height: 24),
 
-              const SizedBox(height: 32),
-
-              // Botón Guardar
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _subiendoImagen ? null : _guardarProducto,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Colors.blue,
+                  // Botón Guardar
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _subiendoImagen ? null : _guardarProducto,
+                      icon: _subiendoImagen
+                          ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                          : const Icon(Icons.check, size: 20),
+                      label: Text(
+                        _subiendoImagen ? 'Guardando...' : 'Guardar Producto',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: AppColors.accent.withOpacity(0.5),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    _subiendoImagen ? 'Subiendo imagen...' : 'Guardar Producto',
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
-                  ),
-                ),
+                  const SizedBox(height: 16),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -4,6 +4,21 @@ import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:app_bodega/app/view/factura/agregar_prodcuto_factura_page.dart';
 import 'package:flutter/material.dart';
 
+// ============= COLORES DEL TEMA =============
+class AppColors {
+  static const Color primary = Color(0xFF1E3A5F);
+  static const Color primaryLight = Color(0xFF2E5077);
+  static const Color accent = Color(0xFF00B894);
+  static const Color accentLight = Color(0xFFE8F8F5);
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color error = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+}
+
 class EditarFacturaPage extends StatefulWidget {
   final FacturaModel factura;
 
@@ -31,13 +46,38 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
     );
   }
 
+  String _formatearFecha(DateTime fecha) {
+    return '${fecha.day}/${fecha.month}/${fecha.year}';
+  }
+
+  void _mostrarSnackBar(String mensaje, {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isSuccess ? Icons.check_circle : (isError ? Icons.error : Icons.info),
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(mensaje)),
+          ],
+        ),
+        backgroundColor: isSuccess ? AppColors.accent : (isError ? AppColors.error : AppColors.primary),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(milliseconds: 2000),
+      ),
+    );
+  }
+
   void _agregarProducto() async {
     final nuevosItems = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AgregarProductoFacturaPage(
-          itemsIniciales: items,
-        ),
+        builder: (context) => AgregarProductoFacturaPage(itemsIniciales: items),
       ),
     );
 
@@ -50,28 +90,24 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
 
   void _editarProducto(int index) async {
     final itemActual = items[index];
-
-    // Obtener información del producto desde la base de datos
     final producto = await _dbHelper.obtenerProductoPorId(itemActual.productoId);
 
     if (producto == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se encontró el producto')),
-        );
+        _mostrarSnackBar('No se encontró el producto', isError: true);
       }
       return;
     }
 
     if (!mounted) return;
 
-    // Mostrar el modal de edición
     final itemEditado = await _mostrarDialogoEdicion(producto, itemActual);
 
     if (itemEditado != null) {
       setState(() {
         items[index] = itemEditado;
       });
+      _mostrarSnackBar('Producto actualizado', isSuccess: true);
     }
   }
 
@@ -84,212 +120,238 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
     final Map<String, TextEditingController> controllersPorSabor = {};
     final Map<String, int> cantidadPorSabor = Map.from(itemActual.cantidadPorSabor);
 
-    // Inicializar controllers con valores actuales
     for (var sabor in producto.sabores) {
       final cantidad = cantidadPorSabor[sabor] ?? 0;
       controllersPorSabor[sabor] = TextEditingController(text: cantidad.toString());
     }
 
-    // Función para calcular el total
     int calcularTotal() {
       return cantidadPorSabor.values.fold(0, (sum, qty) => sum + qty);
     }
 
-    // Función para formatear precio
-    String formatearPrecio(double precio) {
-      final precioInt = precio.toInt();
-      return precioInt.toString().replaceAllMapped(
-        RegExp(r'\B(?=(\d{3})+(?!\d))'),
-            (match) => '.',
-      );
-    }
-
-    return await showDialog<ItemFacturaModel>(
+    return await showModalBottomSheet<ItemFacturaModel>(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          return AlertDialog(
-            title: Text(producto.nombre),
-            content: SingleChildScrollView(
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // PRODUCTO CON UN SOLO SABOR
-                  if (producto.sabores.length == 1) ...[
-                    TextField(
-                      controller: cantidadTotalController,
-                      keyboardType: TextInputType.number,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        labelText: 'Cantidad',
-                        hintText: 'Ej: 12',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.edit, color: AppColors.primary, size: 24),
                         ),
-                        prefixIcon: const Icon(Icons.inventory),
-                      ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ],
-
-                  // PRODUCTO CON MÚLTIPLES SABORES
-                  if (producto.sabores.length > 1) ...[
-                    const Text(
-                      'Distribuir por sabor:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const SizedBox(height: 16),
-                    ...producto.sabores.map((sabor) {
-                      final controller = controllersPorSabor[sabor]!;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                sabor,
-                                style: const TextStyle(fontSize: 15),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 80,
-                              child: TextField(
-                                controller: controller,
-                                keyboardType: TextInputType.number,
-                                textAlign: TextAlign.center,
-                                decoration: InputDecoration(
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 12,
-                                  ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                producto.nombre,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: AppColors.textPrimary,
                                 ),
-                                onTap: () {
-                                  controller.selection = TextSelection(
-                                    baseOffset: 0,
-                                    extentOffset: controller.text.length,
-                                  );
-                                },
-                                onChanged: (value) {
-                                  final cantidad = int.tryParse(value) ?? 0;
-                                  cantidadPorSabor[sabor] = cantidad;
-                                  setState(() {});
-                                },
+                              ),
+                              Text(
+                                '\$${_formatearPrecio(producto.precio)} c/u',
+                                style: const TextStyle(fontSize: 14, color: AppColors.accent),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (producto.sabores.length == 1) ...[
+                          TextField(
+                            controller: cantidadTotalController,
+                            keyboardType: TextInputType.number,
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              labelText: 'Cantidad',
+                              labelStyle: const TextStyle(color: AppColors.textSecondary),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                              ),
+                              prefixIcon: const Icon(Icons.inventory, color: AppColors.primary),
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        if (producto.sabores.length > 1) ...[
+                          const Text(
+                            'Distribuir por sabor:',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+                          ),
+                          const SizedBox(height: 16),
+                          ...producto.sabores.map((sabor) {
+                            final controller = controllersPorSabor[sabor]!;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(sabor, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary)),
+                                  ),
+                                  SizedBox(
+                                    width: 80,
+                                    child: TextField(
+                                      controller: controller,
+                                      keyboardType: TextInputType.number,
+                                      textAlign: TextAlign.center,
+                                      decoration: InputDecoration(
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                                        ),
+                                        isDense: true,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                                      ),
+                                      onTap: () {
+                                        if (controller.text == '0') controller.clear();
+                                      },
+                                      onChanged: (value) {
+                                        cantidadPorSabor[sabor] = int.tryParse(value) ?? 0;
+                                        setState(() {});
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          const Divider(height: 24),
+                        ],
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.accentLight,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    producto.sabores.length == 1
+                                        ? '${int.tryParse(cantidadTotalController.text) ?? 0} unidades'
+                                        : '${calcularTotal()} unidades',
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                  ),
+                                  const Text('TOTAL:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                                ],
+                              ),
+                              Text(
+                                producto.sabores.length == 1
+                                    ? '\$${_formatearPrecio((int.tryParse(cantidadTotalController.text) ?? 0) * producto.precio)}'
+                                    : '\$${_formatearPrecio(calcularTotal() * producto.precio)}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: AppColors.accent),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: const BorderSide(color: AppColors.border),
                               ),
                             ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    const Divider(height: 24),
-                    // Unidades (texto simple)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        '${calcularTotal()} unidades',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    // Total en precio
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.shade200),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'TOTAL:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
+                            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
                           ),
-                          Text(
-                            '\$${formatearPrecio(calcularTotal() * producto.precio)}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: Colors.blue.shade700,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              int cantidadTotal;
+                              if (producto.sabores.length == 1) {
+                                cantidadTotal = int.tryParse(cantidadTotalController.text) ?? 0;
+                                if (cantidadTotal <= 0) {
+                                  _mostrarSnackBar('La cantidad debe ser mayor a 0', isError: true);
+                                  return;
+                                }
+                              } else {
+                                cantidadTotal = calcularTotal();
+                                if (cantidadTotal <= 0) {
+                                  _mostrarSnackBar('Debes agregar al menos una unidad', isError: true);
+                                  return;
+                                }
+                              }
+                              final itemActualizado = ItemFacturaModel(
+                                productoId: producto.id!,
+                                nombreProducto: producto.nombre,
+                                precioUnitario: producto.precio,
+                                cantidadTotal: cantidadTotal,
+                                cantidadPorSabor: producto.sabores.length > 1 ? cantidadPorSabor : {producto.sabores[0]: cantidadTotal},
+                                tieneSabores: producto.sabores.length > 1,
+                              );
+                              Navigator.pop(context, itemActualizado);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
+                            child: const Text('Guardar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  int cantidadTotal;
-
-                  // Validar según tipo de producto
-                  if (producto.sabores.length == 1) {
-                    if (cantidadTotalController.text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Por favor ingresa la cantidad')),
-                      );
-                      return;
-                    }
-                    cantidadTotal = int.parse(cantidadTotalController.text);
-
-                    if (cantidadTotal <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('La cantidad debe ser mayor a 0')),
-                      );
-                      return;
-                    }
-                  } else {
-                    cantidadTotal = calcularTotal();
-
-                    if (cantidadTotal <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Debes agregar al menos una unidad')),
-                      );
-                      return;
-                    }
-                  }
-
-                  final itemActualizado = ItemFacturaModel(
-                    productoId: producto.id!,
-                    nombreProducto: producto.nombre,
-                    precioUnitario: producto.precio,
-                    cantidadTotal: cantidadTotal,
-                    cantidadPorSabor: producto.sabores.length > 1
-                        ? cantidadPorSabor
-                        : {producto.sabores[0]: cantidadTotal},
-                    tieneSabores: producto.sabores.length > 1,
-                  );
-
-                  Navigator.pop(context, itemActualizado);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                ),
-                child: const Text(
-                  'Guardar',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
           );
         },
       ),
@@ -300,21 +362,38 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar Producto'),
-        content: Text('¿Estás seguro de que deseas eliminar ${items[index].nombreProducto}?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline, color: AppColors.error, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Text('Eliminar Producto'),
+          ],
+        ),
+        content: Text('¿Eliminar "${items[index].nombreProducto}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () {
-              setState(() {
-                items.removeAt(index);
-              });
+              setState(() => items.removeAt(index));
               Navigator.pop(context);
+              _mostrarSnackBar('Producto eliminado', isSuccess: true);
             },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -323,9 +402,7 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
 
   void _guardarCambios() async {
     if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Debes agregar al menos un producto')),
-      );
+      _mostrarSnackBar('Debes agregar al menos un producto', isError: true);
       return;
     }
 
@@ -345,17 +422,11 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
       await _dbHelper.actualizarFactura(facturaActualizada);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Factura actualizada para ${widget.factura.nombreCliente}')),
-        );
+        _mostrarSnackBar('Factura actualizada', isSuccess: true);
         Navigator.pop(context, facturaActualizada);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar: $e')),
-        );
-      }
+      _mostrarSnackBar('Error al guardar: $e', isError: true);
     }
   }
 
@@ -364,211 +435,245 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
     double total = items.fold(0, (sum, item) => sum + item.subtotal);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Editar Factura'),
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        title: const Text(
+          'Editar Factura',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _guardarCambios,
-            tooltip: 'Guardar cambios',
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            child: ElevatedButton.icon(
+              onPressed: _guardarCambios,
+              icon: const Icon(Icons.check, size: 18),
+              label: const Text('Guardar'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+            ),
           ),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              // Información del cliente (no editable)
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blue),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Cliente',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          Text(
-                            widget.factura.nombreCliente,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Fecha: ${widget.factura.fecha.day}/${widget.factura.fecha.month}/${widget.factura.fecha.year}',
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                      const Icon(Icons.lock, color: Colors.grey),
-                    ],
-                  ),
-                ),
+          // Info del cliente (no editable)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                border: Border.all(color: AppColors.border, width: 1),
+                borderRadius: BorderRadius.circular(16),
               ),
-
-              // Lista de productos agregados
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(8),
-                  children: [
-                    // Botón agregar producto (siempre visible)
-                    GestureDetector(
-                      onTap: _agregarProducto,
-                      child: Card(
-                        color: Colors.lightGreen[50],
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children:  [
-                              Icon(Icons.add, size: 30, color: Colors.grey[700]),
-                              SizedBox(width: 12),
-                              Text(
-                                "Agregar producto",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey[700],
-                                ),
-                              ),
-                            ],
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.textSecondary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.lock_outline, color: AppColors.textSecondary, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.factura.negocioCliente ?? widget.factura.nombreCliente,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.factura.nombreCliente,
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Fecha: ${_formatearFecha(widget.factura.fecha)}',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
-
-                    // Si no hay productos
-                    if (items.isEmpty)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Text('No hay productos agregados'),
-                        ),
-                      ),
-
-                    // Lista de productos
-                    ...items.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final item = entry.value;
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        child: ListTile(
-                          leading: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: Colors.black45,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${item.cantidadTotal}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                          title: Text(item.nombreProducto),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (item.tieneSabores)
-                                Text(
-                                  'Sabores: ${item.cantidadPorSabor.entries.map((e) => '${e.key} (${e.value})').join(', ')}',
-                                  style: const TextStyle(fontSize: 12),
-                                )
-                              else
-                                Text('Cantidad: ${item.cantidadTotal}'),
-                              Text(
-                                'Subtotal: \$${_formatearPrecio(item.subtotal)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          trailing: IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _eliminarProducto(index),
-                          ),
-                          onTap: () => _editarProducto(index),
-                        ),
-                      );
-                    }).toList(),
-                  ],
-                ),
-              ),
-
-
-              // Total
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  16 +
-                      MediaQuery.of(context).viewInsets.bottom +
-                      MediaQuery.of(context).padding.bottom,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Total: ',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '\$${_formatearPrecio(total)}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                  ],
-                ),
+                ],
               ),
-            ],
+            ),
           ),
 
-          // Botón flotante posicionado arriba del total
-          // Positioned(
-          //   right: 16,
-          //   bottom: 74 +
-          //       MediaQuery.of(context).viewInsets.bottom +
-          //       MediaQuery.of(context).padding.bottom,
-          //   child: FloatingActionButton(
-          //     onPressed: _agregarProducto,
-          //     child: const Icon(Icons.add),
-          //   ),
-          // ),
+          // Lista de productos
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                // Botón agregar
+                GestureDetector(
+                  onTap: _agregarProducto,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentLight,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.add, color: AppColors.accent, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Agregar productos',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.accent),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                if (items.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      children: [
+                        Icon(Icons.shopping_cart_outlined, size: 64, color: AppColors.textSecondary.withOpacity(0.3)),
+                        const SizedBox(height: 16),
+                        const Text('No hay productos', style: TextStyle(fontSize: 16, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+
+                ...items.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final item = entry.value;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _editarProducto(index),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${item.cantidadTotal}',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.nombreProducto,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textPrimary),
+                                  ),
+                                  if (item.tieneSabores)
+                                    Text(
+                                      item.cantidadPorSabor.entries.map((e) => '${e.key} (${e.value})').join(', '),
+                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accentLight,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '\$${_formatearPrecio(item.subtotal)}',
+                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accent),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+                              ),
+                              onPressed: () => _eliminarProducto(index),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+
+          // Total
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + MediaQuery.of(context).padding.bottom),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5)),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('${items.length} ${items.length == 1 ? "producto" : "productos"}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    const Text('Total:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  ],
+                ),
+                Text('\$${_formatearPrecio(total)}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.accent)),
+              ],
+            ),
+          ),
         ],
       ),
     );
