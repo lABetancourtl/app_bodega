@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:vibration/vibration.dart';
 import 'package:native_device_orientation/native_device_orientation.dart';
+import 'package:app_bodega/app/theme/app_colors.dart';
+
 
 class BarcodeScannerPage extends StatefulWidget {
   final String titulo;
@@ -32,7 +34,6 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
 
   late AnimationController _animationController;
 
-  // <CHANGE> Variables para manejar orientación eficientemente
   int _quarterTurns = 0;
   StreamSubscription<NativeDeviceOrientation>? _orientationSubscription;
 
@@ -45,14 +46,12 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
       vsync: this,
     );
 
-    // <CHANGE> Inicializar cámara con delay para asegurar que se abra correctamente
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeCamera();
       _startOrientationListener();
     });
   }
 
-  // <CHANGE> Escuchar orientación con StreamSubscription en lugar de builder
   void _startOrientationListener() {
     _orientationSubscription = NativeDeviceOrientationCommunicator()
         .onOrientationChanged(useSensor: true)
@@ -68,7 +67,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
 
   void _initializeCamera() {
     cameraController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal, // <CHANGE> Mejor balance velocidad/eficiencia
+      detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
       formats: [
         BarcodeFormat.ean13,
@@ -83,7 +82,6 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
       ],
     );
 
-    // <CHANGE> Marcar cámara como lista después de inicializar
     setState(() {
       _cameraReady = true;
     });
@@ -217,36 +215,148 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
   void _ingresarCodigoManual() {
     final TextEditingController codigoController = TextEditingController();
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Ingresar Código'),
-        content: TextField(
-          controller: codigoController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            hintText: 'Ej: 7701234567890',
-            labelText: 'Código de barras',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (dialogContext) => Container(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(dialogContext).viewInsets.bottom,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.keyboard, color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ingresar Código',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Escribe el código manualmente',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Input
+              TextField(
+                controller: codigoController,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                style: const TextStyle(fontSize: 16, color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Ej: 7701234567890',
+                  labelText: 'Código de barras',
+                  labelStyle: const TextStyle(color: AppColors.textSecondary),
+                  hintStyle: TextStyle(color: AppColors.textSecondary.withOpacity(0.5)),
+                  prefixIcon: const Icon(Icons.qr_code, color: AppColors.primary),
+                  filled: true,
+                  fillColor: AppColors.background,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Botones
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        foregroundColor: AppColors.textSecondary,
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final codigo = codigoController.text.trim();
+                        if (codigo.isNotEmpty) {
+                          Navigator.pop(dialogContext);
+                          Navigator.pop(context, codigo);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Buscar', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              final codigo = codigoController.text.trim();
-              if (codigo.isNotEmpty) {
-                Navigator.pop(dialogContext);
-                Navigator.pop(context, codigo);
-              }
-            },
-            child: const Text('Buscar'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -266,61 +376,80 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
     final screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.primary,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(widget.titulo),
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+        title: Text(
+          widget.titulo,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: Colors.white,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.keyboard),
+          _buildAppBarButton(
+            icon: Icons.keyboard,
             tooltip: 'Ingresar manualmente',
             onPressed: _ingresarCodigoManual,
           ),
-          IconButton(
-            icon: Icon(_scannerActivo ? Icons.pause : Icons.play_arrow),
+          _buildAppBarButton(
+            icon: _scannerActivo ? Icons.pause : Icons.play_arrow,
             tooltip: _scannerActivo ? 'Pausar' : 'Reanudar',
             onPressed: _toggleScanner,
           ),
-          IconButton(
-            icon: Icon(
-              _torchOn ? Icons.flash_on : Icons.flash_off,
-              color: _torchOn ? Colors.yellow : Colors.white,
-            ),
+          _buildAppBarButton(
+            icon: _torchOn ? Icons.flash_on : Icons.flash_off,
             tooltip: 'Flash',
             onPressed: _toggleTorch,
+            isActive: _torchOn,
           ),
-          IconButton(
-            icon: const Icon(Icons.cameraswitch),
+          _buildAppBarButton(
+            icon: Icons.cameraswitch,
             tooltip: 'Cambiar cámara',
             onPressed: _switchCamera,
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // <CHANGE> Cámara con rotación compensada, solo se reconstruye cuando cambia _quarterTurns
+          // Cámara
           if (_cameraReady && cameraController != null)
-            Center(
-              child: RotatedBox(
-                quarterTurns: _quarterTurns,
-                child: SizedBox(
-                  width: _quarterTurns.abs() == 1 ? screenSize.height : screenSize.width,
-                  height: _quarterTurns.abs() == 1 ? screenSize.width : screenSize.height,
-                  child: MobileScanner(
-                    controller: cameraController!,
-                    onDetect: _onDetect,
-                    fit: BoxFit.cover,
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+              child: Center(
+                child: RotatedBox(
+                  quarterTurns: _quarterTurns,
+                  child: SizedBox(
+                    width: _quarterTurns.abs() == 1 ? screenSize.height : screenSize.width,
+                    height: _quarterTurns.abs() == 1 ? screenSize.width : screenSize.height,
+                    child: MobileScanner(
+                      controller: cameraController!,
+                      onDetect: _onDetect,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),
             )
           else
-          // <CHANGE> Mostrar indicador mientras la cámara carga
-            const Center(
-              child: CircularProgressIndicator(
-                color: Colors.greenAccent,
+            Container(
+              decoration: const BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(color: AppColors.accent),
               ),
             ),
 
@@ -342,13 +471,13 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
                       height: _barcodeRect!.height,
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: Colors.greenAccent,
+                          color: AppColors.accent,
                           width: 3,
                         ),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.greenAccent.withOpacity(0.5),
+                            color: AppColors.accent.withOpacity(0.4),
                             blurRadius: 20,
                             spreadRadius: 2,
                           ),
@@ -364,17 +493,24 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
           if (_barcodeValue != null && _barcodeRect != null)
             Positioned(
               left: _barcodeRect!.left,
-              top: _barcodeRect!.bottom + 8,
+              top: _barcodeRect!.bottom + 10,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.greenAccent,
-                  borderRadius: BorderRadius.circular(16),
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.accent.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Text(
                   _barcodeValue!,
                   style: const TextStyle(
-                    color: Colors.black,
+                    color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -384,17 +520,24 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
 
           // Indicador de estado
           Positioned(
-            top: 16,
-            left: 0,
-            right: 0,
+            top: 20,
+            left: 20,
+            right: 20,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: _scannerActivo
-                      ? Colors.black.withOpacity(0.6)
-                      : Colors.orange.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(24),
+                      ? AppColors.surface
+                      : AppColors.warning,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -405,21 +548,30 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.greenAccent.withOpacity(0.8),
-                          ),
+                          color: AppColors.accent,
                         ),
                       ),
                       const SizedBox(width: 10),
-                    ],
-                    Text(
-                      _scannerActivo ? 'Buscando código...' : 'Pausado',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
+                      const Text(
+                        'Buscando código...',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
+                    ] else ...[
+                      const Icon(Icons.pause_circle_filled, size: 18, color: Colors.white),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Escáner pausado',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -428,27 +580,88 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
 
           // Instrucciones
           Positioned(
-            bottom: 40,
+            bottom: 0,
             left: 0,
             right: 0,
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 32),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.7),
+                  ],
+                ),
               ),
-              child: Text(
-                widget.instruccion,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.qr_code_scanner, size: 20, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        widget.instruccion,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAppBarButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    bool isActive = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: IconButton(
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isActive ? AppColors.accent : Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: Colors.white,
+          ),
+        ),
+        tooltip: tooltip,
+        onPressed: onPressed,
       ),
     );
   }

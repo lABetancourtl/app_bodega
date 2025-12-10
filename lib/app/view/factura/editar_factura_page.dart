@@ -3,21 +3,8 @@ import 'package:app_bodega/app/model/factura_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
 import 'package:app_bodega/app/view/factura/agregar_prodcuto_factura_page.dart';
 import 'package:flutter/material.dart';
+import 'package:app_bodega/app/theme/app_colors.dart';
 
-// ============= COLORES DEL TEMA =============
-class AppColors {
-  static const Color primary = Color(0xFF1E3A5F);
-  static const Color primaryLight = Color(0xFF2E5077);
-  static const Color accent = Color(0xFF00B894);
-  static const Color accentLight = Color(0xFFE8F8F5);
-  static const Color background = Color(0xFFF8FAFC);
-  static const Color surface = Colors.white;
-  static const Color textPrimary = Color(0xFF1A1A2E);
-  static const Color textSecondary = Color(0xFF6B7280);
-  static const Color border = Color(0xFFE5E7EB);
-  static const Color error = Color(0xFFEF4444);
-  static const Color warning = Color(0xFFF59E0B);
-}
 
 class EditarFacturaPage extends StatefulWidget {
   final FacturaModel factura;

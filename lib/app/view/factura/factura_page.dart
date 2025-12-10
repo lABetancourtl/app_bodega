@@ -9,21 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../service/esc_pos_service.dart';
+import 'package:app_bodega/app/theme/app_colors.dart';
 
-// ============= COLORES DEL TEMA =============
-class AppColors {
-  static const Color primary = Color(0xFF1E3A5F);
-  static const Color primaryLight = Color(0xFF2E5077);
-  static const Color accent = Color(0xFF00B894);
-  static const Color accentLight = Color(0xFFE8F8F5);
-  static const Color background = Color(0xFFF8FAFC);
-  static const Color surface = Colors.white;
-  static const Color textPrimary = Color(0xFF1A1A2E);
-  static const Color textSecondary = Color(0xFF6B7280);
-  static const Color border = Color(0xFFE5E7EB);
-  static const Color error = Color(0xFFEF4444);
-  static const Color warning = Color(0xFFF59E0B);
-}
+
 
 // ============= STATE NOTIFIER PARA FECHA =============
 class FechaState {
@@ -580,10 +568,10 @@ class FacturaPage extends ConsumerWidget {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withOpacity(0.1),
+                  color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.person_add_outlined, color: AppColors.accent, size: 24),
+                child: const Icon(Icons.person_add_outlined, color: AppColors.primary, size: 24),
               ),
               title: const Text('Factura Limpia', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
               subtitle: const Text('Cliente ocasional sin registro', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),

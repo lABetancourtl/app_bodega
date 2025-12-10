@@ -9,21 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'historial_facturas_cliente_page.dart';
+// lib/app/theme/app_colors.dart
+import 'package:app_bodega/app/theme/app_colors.dart';
 
-// ============= COLORES DEL TEMA =============
-class AppColors {
-  static const Color primary = Color(0xFF1E3A5F);
-  static const Color primaryLight = Color(0xFF2E5077);
-  static const Color accent = Color(0xFF00B894);
-  static const Color accentLight = Color(0xFFE8F8F5);
-  static const Color background = Color(0xFFF8FAFC);
-  static const Color surface = Colors.white;
-  static const Color textPrimary = Color(0xFF1A1A2E);
-  static const Color textSecondary = Color(0xFF6B7280);
-  static const Color border = Color(0xFFE5E7EB);
-  static const Color error = Color(0xFFEF4444);
-  static const Color warning = Color(0xFFF59E0B);
-}
 
 // ============= STATE NOTIFIER PARA FILTROS =============
 class FiltrosState {
@@ -93,9 +81,11 @@ final clientesFiltradosProvider = Provider<List<ClienteModel>>((ref) {
 
   return clientesPorRuta.whenData((clientes) {
     return clientes.where((cliente) {
+      final query = filtros.searchQuery.toLowerCase();
       final coincideBusqueda = filtros.searchQuery.isEmpty ||
-          cliente.nombre.toLowerCase().contains(filtros.searchQuery.toLowerCase()) ||
-          (cliente.nombreNegocio?.toLowerCase().contains(filtros.searchQuery.toLowerCase()) ?? false);
+          cliente.nombre.toLowerCase().contains(query) ||
+          (cliente.nombreNegocio?.toLowerCase().contains(query) ?? false) ||
+          (cliente.direccion?.toLowerCase().contains(query) ?? false);
       return coincideBusqueda;
     }).toList();
   }).maybeWhen(data: (data) => data, orElse: () => []);
@@ -384,7 +374,7 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                         ),
                         Text(
                           cliente.telefono!,
-                          style: const TextStyle(fontSize: 14, color: AppColors.accent, fontWeight: FontWeight.w600),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.accent),
                         ),
                       ],
                     ),
@@ -415,10 +405,10 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withOpacity(0.1),
+                  color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.chat, color: AppColors.accent, size: 20),
+                child: const Icon(Icons.chat, color: AppColors.primary, size: 20),
               ),
               title: const Text('WhatsApp'),
               subtitle: const Text('Abrir chat', style: TextStyle(fontSize: 12)),
@@ -553,10 +543,10 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.accent.withOpacity(0.1),
+                    color: AppColors.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.contact_phone, color: AppColors.accent, size: 20),
+                  child: const Icon(Icons.contact_phone, color: AppColors.primary, size: 20),
                 ),
                 title: const Text('Comunicar'),
                 onTap: () {
@@ -589,10 +579,10 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
+                  color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.edit_outlined, color: AppColors.warning, size: 20),
+                child: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
               ),
               title: const Text('Editar cliente'),
               onTap: () async {
