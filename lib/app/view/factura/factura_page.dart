@@ -235,10 +235,10 @@ class FacturaPage extends ConsumerWidget {
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.1),
+                      color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.picture_as_pdf, color: AppColors.error, size: 24),
+                    child: const Icon(Icons.picture_as_pdf, color: AppColors.primary, size: 24),
                   ),
                   title: const Text('Descargar PDF', style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: const Text('Guardar como PDF (80mm)', style: TextStyle(fontSize: 12)),
@@ -344,10 +344,10 @@ class FacturaPage extends ConsumerWidget {
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: AppColors.accent.withOpacity(0.1),
+                            color: AppColors.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.print, color: AppColors.accent, size: 20),
+                          child: const Icon(Icons.print, color: AppColors.primary, size: 20),
                         ),
                         title: Text(
                           impresora.platformName.isNotEmpty ? impresora.platformName : 'Impresora ${index + 1}',
@@ -472,10 +472,10 @@ class FacturaPage extends ConsumerWidget {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withOpacity(0.1),
+                  color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.edit_outlined, color: AppColors.accent, size: 20),
+                child: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
               ),
               title: const Text('Editar factura'),
               onTap: () {

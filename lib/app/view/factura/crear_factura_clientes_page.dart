@@ -68,10 +68,10 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
   }
 
   void _agregarProducto() async {
-    if (clienteSeleccionado == null) {
-      _mostrarSnackBar('Por favor selecciona un cliente primero', isError: true);
-      return;
-    }
+    // if (clienteSeleccionado == null) {
+    //   _mostrarSnackBar('Por favor selecciona un cliente primero', isError: true);
+    //   return;
+    // }
 
     final resultado = await Navigator.push(
       context,

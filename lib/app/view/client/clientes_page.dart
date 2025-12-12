@@ -989,7 +989,8 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                     final clientesBuscados = filtros.searchQuery.isEmpty
                         ? clientesDeRuta
                         : clientesDeRuta.where((c) =>
-                    c.nombre.toLowerCase().contains(filtros.searchQuery.toLowerCase()) ||
+                        c.nombre.toLowerCase().contains(filtros.searchQuery.toLowerCase()) ||
+                        c.direccion.toLowerCase().contains(filtros.searchQuery.toLowerCase()) ||
                         (c.nombreNegocio?.toLowerCase().contains(filtros.searchQuery.toLowerCase()) ?? false)
                     ).toList();
 

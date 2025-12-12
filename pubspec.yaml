@@ -40,9 +40,9 @@ dependencies:
   image_picker: ^1.0.0
   url_launcher: ^6.2.2
   share_plus: ^7.1.0
-  firebase_core: ^2.24.0
-  cloud_firestore: ^4.14.0
-  firebase_storage: ^11.5.0
+  firebase_core: ^4.2.1
+  cloud_firestore: ^6.1.0
+  firebase_storage: ^13.0.4
   http: ^1.1.0
   crypto: ^3.0.0
   flutter_riverpod: ^2.4.0

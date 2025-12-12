@@ -635,7 +635,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
             ),
             _buildMenuOption(
               icon: Icons.inventory_2_outlined,
-              iconColor: AppColors.accent,
+              iconColor: AppColors.primary,
               title: 'Nuevo Producto',
               subtitle: 'Agregar un producto al catálogo',
               onTap: () {

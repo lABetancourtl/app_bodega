@@ -77,12 +77,22 @@ class _CrearClientePageState extends State<CrearClientePage> {
     try {
       final locationService = LocationService();
 
+      // final position = await locationService.obtenerUbicacionPrecisa(
+      //   onProgress: (accuracy) {
+      //     print('Precisión actual: ${accuracy.toStringAsFixed(1)}m');
+      //   },
+      //   precisionObjetivo: 5.0,
+      //   timeout: const Duration(seconds: 5),
+      // );
+
+      // Ejemplo de uso al guardar ubicación de cliente
       final position = await locationService.obtenerUbicacionPrecisa(
+        precisionObjetivo: 5.0, // 5 metros de precisión
+        timeout: const Duration(seconds: 5),
         onProgress: (accuracy) {
+          // Mostrar progreso al usuario
           print('Precisión actual: ${accuracy.toStringAsFixed(1)}m');
         },
-        precisionObjetivo: 8.0,
-        timeout: const Duration(seconds: 5),
       );
 
       if (position != null) {

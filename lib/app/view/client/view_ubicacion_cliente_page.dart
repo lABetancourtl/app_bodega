@@ -211,10 +211,10 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.map, color: Colors.blue, size: 24),
+                child: const Icon(Icons.map, color: AppColors.primary, size: 24),
               ),
               title: const Text('Google Maps', style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: const Text('Abrir en Google Maps', style: TextStyle(fontSize: 12)),
@@ -238,10 +238,10 @@ class _ViewUbicacionClientePageState extends State<ViewUbicacionClientePage> {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
+                  color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.navigation, color: Colors.orange, size: 24),
+                child: const Icon(Icons.navigation, color: AppColors.primary, size: 24),
               ),
               title: const Text('Waze', style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: const Text('Abrir en Waze', style: TextStyle(fontSize: 12)),
