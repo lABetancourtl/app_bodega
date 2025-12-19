@@ -3,12 +3,13 @@ import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/categoria_model.dart';
 import 'package:app_bodega/app/model/factura_model.dart';
 import 'package:app_bodega/app/model/prodcuto_model.dart';
-import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/view/factura/carrito_productos_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibration/vibration.dart';
 import 'package:app_bodega/app/theme/app_colors.dart';
+import '../../providers/cache_providers.dart';
 
 
 import '../barcode/barcode_scaner_page.dart';
@@ -34,10 +35,11 @@ final categoriaSeleccionadaProvider = Provider<String?>((ref) {
   );
 });
 
-final productosPorCategoriaProvider = FutureProvider.family<List<ProductoModel>, String>((ref, categoriaId) async {
-  final dbHelper = DatabaseHelper();
-  return await dbHelper.obtenerProductosPorCategoria(categoriaId);
-});
+
+// final productosPorCategoriaProvider = FutureProvider.family<List<ProductoModel>, String>((ref, categoriaId) async {
+//   final dbHelper = DatabaseHelper();
+//   return await dbHelper.obtenerProductosPorCategoria(categoriaId);
+// });
 
 final carritoTemporalProvider = StateProvider<List<ItemFacturaModel>>((ref) => []);
 final productoResaltadoProvider = StateProvider<String?>((ref) => null);
@@ -693,16 +695,15 @@ class _ProductoCard extends StatelessWidget {
       if (imagenPath.startsWith('http')) {
         return ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Image.network(
-            imagenPath,
-            fit: BoxFit.cover,
+          child: CachedNetworkImage(
+            imageUrl: imagenPath,
             width: size,
             height: size,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return _imagenPlaceholder(size);
-            },
-            errorBuilder: (context, error, stackTrace) => _imagenPorDefecto(size),
+            fit: BoxFit.cover,
+            placeholder: (context, url) => _imagenPlaceholder(size),
+            errorWidget: (context, url, error) => _imagenPorDefecto(size),
+            memCacheWidth: (size * 2).toInt(), // Optimizar memoria
+            memCacheHeight: (size * 2).toInt(),
           ),
         );
       } else {
@@ -1001,6 +1002,7 @@ class _ProductoCard extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => _mostrarDialogoAgregar(context),
+          onLongPress: () => _verImagenProducto(context, producto),
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1080,5 +1082,58 @@ class _ProductoCard extends StatelessWidget {
         ),
       ),
     );
+  }
+  void _verImagenProducto(BuildContext context, ProductoModel producto) {
+    if (producto.imagenPath != null && producto.imagenPath!.isNotEmpty) {
+      Widget imageWidget = const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.image_not_supported,
+              size: 80,
+              color: Colors.grey,
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Imagen no disponible',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ],
+        ),
+      );
+
+      if (producto.imagenPath!.startsWith('http')) {
+        imageWidget = Image.network(producto.imagenPath!, fit: BoxFit.contain);
+      } else {
+        final file = File(producto.imagenPath!);
+        if (file.existsSync()) {
+          imageWidget = Image.file(file, fit: BoxFit.contain);
+        }
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            backgroundColor: Colors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              title: Text(producto.nombre, style: const TextStyle(fontSize: 16)),
+            ),
+            body: Center(
+              child: InteractiveViewer(
+                boundaryMargin: const EdgeInsets.all(20),
+                minScale: 0.5,
+                maxScale: 4,
+                child: imageWidget, // Ahora imageWidget siempre tendrá un valor
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
   }
 }

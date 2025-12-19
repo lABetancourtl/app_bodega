@@ -1,6 +1,5 @@
 import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/cliente_model.dart';
-import 'package:app_bodega/app/service/cache_manager.dart';
 import 'package:app_bodega/app/view/client/crear_cliente_page.dart';
 import 'package:app_bodega/app/view/client/editar_cliente_page.dart';
 import 'package:app_bodega/app/view/client/view_ubicacion_cliente_page.dart';
@@ -9,8 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'historial_facturas_cliente_page.dart';
-// lib/app/theme/app_colors.dart
 import 'package:app_bodega/app/theme/app_colors.dart';
+import '../../providers/cache_providers.dart';
 
 
 // ============= STATE NOTIFIER PARA FILTROS =============
@@ -48,11 +47,6 @@ final filtrosProvider = StateNotifierProvider<FiltrosNotifier, FiltrosState>((re
   return FiltrosNotifier();
 });
 
-// ============= PROVIDERS =============
-final clientesProvider = FutureProvider<List<ClienteModel>>((ref) async {
-  final dbHelper = DatabaseHelper();
-  return await dbHelper.obtenerClientes();
-});
 
 final clientesPorRutaProvider = FutureProvider.family<List<ClienteModel>, String?>((ref, rutaValue) async {
   final clientesAsync = ref.watch(clientesProvider);
@@ -84,8 +78,8 @@ final clientesFiltradosProvider = Provider<List<ClienteModel>>((ref) {
       final query = filtros.searchQuery.toLowerCase();
       final coincideBusqueda = filtros.searchQuery.isEmpty ||
           cliente.nombre.toLowerCase().contains(query) ||
-          (cliente.nombreNegocio?.toLowerCase().contains(query) ?? false) ||
-          (cliente.direccion?.toLowerCase().contains(query) ?? false);
+          cliente.nombreNegocio.toLowerCase().contains(query) ||
+          cliente.direccion.toLowerCase().contains(query);
       return coincideBusqueda;
     }).toList();
   }).maybeWhen(data: (data) => data, orElse: () => []);
@@ -595,7 +589,8 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
                 if (clienteActualizado != null) {
                   try {
                     await dbHelper.actualizarCliente(clienteActualizado);
-                    ref.invalidate(clientesProvider);
+                    await CacheHelper.invalidarClientes(ref);
+
                     if (context.mounted) {
                       _mostrarSnackBar('Cliente actualizado', isSuccess: true);
                     }
@@ -685,7 +680,10 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
               Navigator.pop(dialogContext);
               try {
                 await dbHelper.eliminarCliente(cliente.id!);
-                ref.invalidate(clientesProvider);
+
+                // ✅ Invalidar caché
+                await CacheHelper.invalidarClientes(ref);
+
                 if (context.mounted) {
                   _mostrarSnackBar('Cliente eliminado', isSuccess: true);
                 }
@@ -843,7 +841,8 @@ class _ClientesPageState extends ConsumerState<ClientesPage> {
     if (nuevoCliente != null) {
       try {
         await dbHelper.insertarCliente(nuevoCliente);
-        ref.invalidate(clientesProvider);
+        await CacheHelper.invalidarClientes(ref);
+
         if (context.mounted) {
           _mostrarSnackBar('Cliente ${nuevoCliente.nombre} creado', isSuccess: true);
         }

@@ -7,18 +7,13 @@ import 'package:app_bodega/app/view/prodcut/crear_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/crear_producto_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_categoria_page.dart';
 import 'package:app_bodega/app/view/prodcut/editar_prodcuto_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibration/vibration.dart';
+import '../../providers/cache_providers.dart';
 import '../barcode/barcode_scaner_page.dart' as scanner;
 import 'package:app_bodega/app/theme/app_colors.dart';
-
-
-// ============= PROVIDERS =============
-final categoriasProvider = FutureProvider<List<CategoriaModel>>((ref) async {
-  final dbHelper = DatabaseHelper();
-  return await dbHelper.obtenerCategorias();
-});
 
 final categoriaIndexProvider = StateProvider<int>((ref) => 0);
 
@@ -33,11 +28,6 @@ final categoriaSeleccionadaProvider = Provider<String?>((ref) {
     },
     orElse: () => null,
   );
-});
-
-final productosPorCategoriaProvider = FutureProvider.family<List<ProductoModel>, String>((ref, categoriaId) async {
-  final dbHelper = DatabaseHelper();
-  return await dbHelper.obtenerProductosPorCategoria(categoriaId);
 });
 
 final productoResaltadoProvider = StateProvider<String?>((ref) => null);
@@ -61,7 +51,19 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: ref.read(categoriaIndexProvider));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final categoriasAsync = ref.read(categoriasProvider);
+      categoriasAsync.whenData((categorias) {
+        final currentIndex = ref.read(categoriaIndexProvider);
+        if (currentIndex >= categorias.length && categorias.isNotEmpty) {
+          ref.read(categoriaIndexProvider.notifier).state = 0;
+        }
+      });
+    });
+
+    final initialIndex = ref.read(categoriaIndexProvider);
+    _pageController = PageController(initialPage: initialIndex.clamp(0, 999));
   }
 
   ScrollController _getScrollController(int index) {
@@ -92,6 +94,11 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
   // Mostrar dropdown de categorías
   void _mostrarSelectorCategorias(BuildContext context, List<CategoriaModel> categorias) {
     final currentIndex = ref.read(categoriaIndexProvider);
+
+    // FIX: Asegurar que el índice sea válido
+    final safeCurrentIndex = currentIndex.clamp(0,
+        categorias.isEmpty ? 0 : categorias.length - 1
+    );
 
     showModalBottomSheet(
       context: context,
@@ -152,7 +159,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
                 itemCount: categorias.length,
                 itemBuilder: (context, index) {
                   final categoria = categorias[index];
-                  final isSelected = index == currentIndex;
+                  final isSelected = index == safeCurrentIndex;
 
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
@@ -309,16 +316,15 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
       if (imagenPath.startsWith('http')) {
         return ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Image.network(
-            imagenPath,
-            fit: BoxFit.cover,
+          child: CachedNetworkImage(
+            imageUrl: imagenPath,
             width: size,
             height: size,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return _imagenPlaceholder(size);
-            },
-            errorBuilder: (context, error, stackTrace) => _imagenPorDefecto(size),
+            fit: BoxFit.cover,
+            placeholder: (context, url) => _imagenPlaceholder(size),
+            errorWidget: (context, url, error) => _imagenPorDefecto(size),
+            memCacheWidth: (size * 2).toInt(), // Optimizar memoria
+            memCacheHeight: (size * 2).toInt(),
           ),
         );
       } else {
@@ -378,7 +384,9 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
     if (nuevaCategoria != null) {
       try {
         await dbHelper.insertarCategoria(nuevaCategoria);
-        ref.invalidate(categoriasProvider);
+
+        await CacheHelper.invalidarCategorias(ref);
+
         if (context.mounted) {
           _mostrarSnackBar('Categoría ${nuevaCategoria.nombre} creada', isSuccess: true);
         }
@@ -400,7 +408,9 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
     if (categoriaActualizada != null) {
       try {
         await dbHelper.actualizarCategoria(categoriaActualizada);
-        ref.invalidate(categoriasProvider);
+
+        await CacheHelper.invalidarCategorias(ref);
+
         if (context.mounted) {
           _mostrarSnackBar('Categoría ${categoriaActualizada.nombre} actualizada', isSuccess: true);
         }
@@ -446,7 +456,8 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
             onPressed: () async {
               try {
                 await dbHelper.eliminarCategoria(categoria.id!);
-                ref.invalidate(categoriasProvider);
+                await CacheHelper.invalidarCategorias(ref);
+
                 final currentIndex = ref.read(categoriaIndexProvider);
                 if (currentIndex > 0) {
                   ref.read(categoriaIndexProvider.notifier).state = currentIndex - 1;
@@ -479,7 +490,8 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
     if (nuevoProducto != null) {
       try {
         await dbHelper.insertarProducto(nuevoProducto);
-        ref.invalidate(productosPorCategoriaProvider(nuevoProducto.categoriaId));
+        await CacheHelper.invalidarProductos(ref);
+
         if (context.mounted) {
           _mostrarSnackBar('Producto ${nuevoProducto.nombre} creado', isSuccess: true);
         }
@@ -525,7 +537,8 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
             onPressed: () async {
               try {
                 await dbHelper.eliminarProducto(producto.id!);
-                ref.invalidate(productosPorCategoriaProvider(producto.categoriaId));
+                await CacheHelper.invalidarProductos(ref);
+
                 Navigator.pop(context);
                 if (context.mounted) {
                   _mostrarSnackBar('Producto eliminado', isSuccess: true);
@@ -549,7 +562,23 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
       Widget imageWidget;
 
       if (producto.imagenPath!.startsWith('http')) {
-        imageWidget = Image.network(producto.imagenPath!, fit: BoxFit.contain);
+        imageWidget = CachedNetworkImage(
+          imageUrl: producto.imagenPath!,
+          fit: BoxFit.contain,
+          placeholder: (context, url) => const Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          ),
+          errorWidget: (context, url, error) => const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.image_not_supported, size: 80, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('Imagen no disponible', style: TextStyle(color: Colors.grey, fontSize: 16)),
+              ],
+            ),
+          ),
+        );
       } else {
         final file = File(producto.imagenPath!);
         if (file.existsSync()) {
@@ -849,7 +878,8 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
                 if (productoActualizado != null) {
                   try {
                     await dbHelper.actualizarProducto(productoActualizado);
-                    ref.invalidate(productosPorCategoriaProvider(productoActualizado.categoriaId));
+                    await CacheHelper.invalidarProductos(ref);
+
                     if (context.mounted) {
                       _mostrarSnackBar('Producto actualizado', isSuccess: true);
                     }
@@ -1070,7 +1100,11 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
   // Widget para el selector de categoría en el header
   Widget _buildCategorySelector(List<CategoriaModel> categorias) {
     final currentIndex = ref.watch(categoriaIndexProvider);
-    final currentCategory = categorias.isNotEmpty && currentIndex < categorias.length
+
+    // FIX: Verificación segura del índice y la categoría
+    final currentCategory = (categorias.isNotEmpty &&
+        currentIndex >= 0 &&
+        currentIndex < categorias.length)
         ? categorias[currentIndex]
         : null;
 
@@ -1266,6 +1300,12 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
           );
         }
 
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (currentIndex >= categorias.length) {
+            ref.read(categoriaIndexProvider.notifier).state = 0;
+          }
+        });
+
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
@@ -1325,16 +1365,18 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
           ),
           body: Column(
             children: [
-              // Indicador de página
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   border: Border(bottom: BorderSide(color: AppColors.border.withOpacity(0.5))),
                 ),
-                child: _buildPageIndicator(categorias.length, currentIndex),
+                child: _buildPageIndicator(
+                    categorias.length,
+                    // FIX: Asegurar que el índice sea válido
+                    currentIndex.clamp(0, categorias.length - 1)
+                ),
               ),
-              // PageView para deslizar entre categorías
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
@@ -1343,8 +1385,26 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
                     ref.read(categoriaIndexProvider.notifier).state = index;
                   },
                   itemBuilder: (context, pageIndex) {
+                    // FIX: Verificar que el índice sea válido
+                    if (pageIndex >= categorias.length) {
+                      return const Center(
+                        child: Text('Índice inválido'),
+                      );
+                    }
+
                     final categoria = categorias[pageIndex];
-                    final productosAsync = ref.watch(productosPorCategoriaProvider(categoria.id!));
+
+                    // FIX: Verificar que categoria.id no sea null
+                    final categoriaId = categoria.id;
+                    if (categoriaId == null) {
+                      return const Center(
+                        child: Text('Categoría sin ID'),
+                      );
+                    }
+
+                    final productosAsync = ref.watch(
+                        productosPorCategoriaProvider(categoriaId)
+                    );
 
                     return productosAsync.when(
                       loading: () => Center(
@@ -1353,7 +1413,8 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
                           children: const [
                             CircularProgressIndicator(color: AppColors.primary),
                             SizedBox(height: 16),
-                            Text('Cargando productos...', style: TextStyle(color: AppColors.textSecondary)),
+                            Text('Cargando productos...',
+                                style: TextStyle(color: AppColors.textSecondary)),
                           ],
                         ),
                       ),
@@ -1363,11 +1424,16 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
                           children: [
                             const Icon(Icons.error_outline, size: 64, color: AppColors.error),
                             const SizedBox(height: 16),
-                            Text('Error: $err', style: const TextStyle(color: AppColors.error)),
+                            Text('Error: $err',
+                                style: const TextStyle(color: AppColors.error)),
                           ],
                         ),
                       ),
-                      data: (productos) => _construirListaProductos(productos, categorias, pageIndex),
+                      data: (productos) => _construirListaProductos(
+                          productos,
+                          categorias,
+                          pageIndex
+                      ),
                     );
                   },
                 ),
@@ -1378,4 +1444,6 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
       },
     );
   }
+
+
 }

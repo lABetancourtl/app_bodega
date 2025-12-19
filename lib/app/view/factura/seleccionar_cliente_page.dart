@@ -1,24 +1,19 @@
-import 'package:app_bodega/app/datasources/database_helper.dart';
 import 'package:app_bodega/app/model/cliente_model.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_bodega/app/theme/app_colors.dart';
+import '../../providers/cache_providers.dart'; // ✅ NUEVO
 
-
-class SeleccionarClientePage extends StatefulWidget {
+class SeleccionarClientePage extends ConsumerStatefulWidget {
   const SeleccionarClientePage({super.key});
 
   @override
-  State<SeleccionarClientePage> createState() => _SeleccionarClientePageState();
+  ConsumerState<SeleccionarClientePage> createState() => _SeleccionarClientePageState();
 }
 
-class _SeleccionarClientePageState extends State<SeleccionarClientePage> {
+class _SeleccionarClientePageState extends ConsumerState<SeleccionarClientePage> {
   final TextEditingController _searchController = TextEditingController();
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-
-  List<ClienteModel> clientes = [];
-  List<ClienteModel> clientesFiltrados = [];
   String? _rutaSeleccionada;
-  bool _isLoading = true;
 
   final List<Map<String, String?>> rutasDisponibles = [
     {'label': 'Todas', 'value': null},
@@ -28,41 +23,23 @@ class _SeleccionarClientePageState extends State<SeleccionarClientePage> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _cargarClientes();
-  }
-
-  void _cargarClientes() async {
-    setState(() => _isLoading = true);
-    final clientesCargados = await _dbHelper.obtenerClientes();
-    setState(() {
-      clientes = clientesCargados;
-      _filtrarClientes('');
-      _isLoading = false;
-    });
-  }
-
-  void _filtrarClientes(String query) {
-    setState(() {
-      clientesFiltrados = clientes.where((cliente) {
-        final coincideBusqueda = query.isEmpty ||
-            cliente.nombre.toLowerCase().contains(query.toLowerCase()) ||
-            (cliente.direccion?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
-            (cliente.nombreNegocio?.toLowerCase().contains(query.toLowerCase()) ?? false);
-
-        final coincideRuta = _rutaSeleccionada == null ||
-            cliente.ruta.toString().split('.').last == _rutaSeleccionada;
-
-        return coincideBusqueda && coincideRuta;
-      }).toList();
-    });
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  List<ClienteModel> _filtrarClientes(List<ClienteModel> clientes, String query) {
+    return clientes.where((cliente) {
+      final coincideBusqueda = query.isEmpty ||
+          cliente.nombre.toLowerCase().contains(query.toLowerCase()) ||
+          cliente.direccion.toLowerCase().contains(query.toLowerCase()) ||
+          cliente.nombreNegocio.toLowerCase().contains(query.toLowerCase());
+
+      final coincideRuta = _rutaSeleccionada == null ||
+          cliente.ruta.toString().split('.').last == _rutaSeleccionada;
+
+      return coincideBusqueda && coincideRuta;
+    }).toList();
   }
 
   void _mostrarSelectorRutas() {
@@ -144,7 +121,6 @@ class _SeleccionarClientePageState extends State<SeleccionarClientePage> {
                 Navigator.pop(sheetContext);
                 setState(() {
                   _rutaSeleccionada = ruta['value'];
-                  _filtrarClientes(_searchController.text);
                 });
               },
             );
@@ -194,6 +170,8 @@ class _SeleccionarClientePageState extends State<SeleccionarClientePage> {
 
   @override
   Widget build(BuildContext context) {
+    final clientesAsync = ref.watch(clientesProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -220,7 +198,7 @@ class _SeleccionarClientePageState extends State<SeleccionarClientePage> {
                 // Buscador
                 TextField(
                   controller: _searchController,
-                  onChanged: _filtrarClientes,
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     hintText: 'Buscar cliente...',
                     hintStyle: const TextStyle(color: AppColors.textSecondary),
@@ -244,9 +222,16 @@ class _SeleccionarClientePageState extends State<SeleccionarClientePage> {
                   children: [
                     _buildRouteSelector(),
                     const Spacer(),
-                    Text(
-                      '${clientesFiltrados.length} clientes',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    clientesAsync.when(
+                      data: (clientes) {
+                        final filtrados = _filtrarClientes(clientes, _searchController.text);
+                        return Text(
+                          '${filtrados.length} clientes',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
                     ),
                   ],
                 ),
@@ -256,128 +241,144 @@ class _SeleccionarClientePageState extends State<SeleccionarClientePage> {
 
           // Lista de clientes
           Expanded(
-            child: _isLoading
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  CircularProgressIndicator(color: AppColors.primary),
-                  SizedBox(height: 16),
-                  Text('Cargando clientes...', style: TextStyle(color: AppColors.textSecondary)),
-                ],
+            child: clientesAsync.when(
+              loading: () => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    CircularProgressIndicator(color: AppColors.primary),
+                    SizedBox(height: 16),
+                    Text('Cargando clientes...', style: TextStyle(color: AppColors.textSecondary)),
+                  ],
+                ),
               ),
-            )
-                : clientesFiltrados.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.05),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.people_outline, size: 64, color: AppColors.primary.withOpacity(0.3)),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Sin resultados',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'No se encontraron clientes',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-                  ),
-                ],
+              error: (err, stack) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64, color: AppColors.error),
+                    const SizedBox(height: 16),
+                    Text('Error: $err', style: const TextStyle(color: AppColors.error)),
+                  ],
+                ),
               ),
-            )
-                : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              itemCount: clientesFiltrados.length,
-              itemBuilder: (context, index) {
-                final cliente = clientesFiltrados[index];
+              data: (clientes) {
+                final clientesFiltrados = _filtrarClientes(clientes, _searchController.text);
 
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: Material(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () => Navigator.pop(context, cliente),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.border),
+                if (clientesFiltrados.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.05),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.people_outline, size: 64, color: AppColors.primary.withOpacity(0.3)),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Center(
-                                child: Icon(Icons.store, color: AppColors.primary, size: 24),
-                              ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Sin resultados',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'No se encontraron clientes',
+                          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  itemCount: clientesFiltrados.length,
+                  itemBuilder: (context, index) {
+                    final cliente = clientesFiltrados[index];
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Material(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => Navigator.pop(context, cliente),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.border),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    cliente.nombreNegocio ?? 'Sin negocio',
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    cliente.nombre,
-                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                  child: const Center(
+                                    child: Icon(Icons.store, color: AppColors.primary, size: 24),
                                   ),
-                                  if (cliente.direccion != null)
-                                    Text(
-                                      cliente.direccion!,
-                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.accent.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                cliente.ruta?.toString().split('.').last.toUpperCase() ?? 'SIN RUTA',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.accent,
                                 ),
-                              ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        cliente.nombreNegocio,
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        cliente.nombre,
+                                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                      ),
+                                      Text(
+                                        cliente.direccion,
+                                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    cliente.ruta.toString().split('.').last.toUpperCase(),
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.accent,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 );
               },
             ),

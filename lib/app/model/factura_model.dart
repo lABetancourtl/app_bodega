@@ -66,8 +66,8 @@ class ItemFacturaModel {
 
 // ============= FACTURA MODEL =============
 class FacturaModel {
-  final String? id;  // ← CAMBIO: int? → String?
-  final String clienteId;  // ← CAMBIO: int → String
+  final String? id;
+  final String clienteId;
   final String nombreCliente;
   final String direccionCliente;
   final String? telefonoCliente;

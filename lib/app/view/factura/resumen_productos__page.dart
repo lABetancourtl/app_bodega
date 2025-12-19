@@ -1,8 +1,9 @@
-import 'package:app_bodega/app/datasources/database_helper.dart';
-import 'package:app_bodega/app/model/factura_model.dart';
+import '../../datasources/database_helper.dart';
+import '../../model/factura_model.dart';
 import 'package:flutter/material.dart';
-import 'package:app_bodega/app/theme/app_colors.dart';
-
+import '../../theme/app_colors.dart';
+import '../../service/esc_pos_service.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class ResumenProductosDiaPage extends StatefulWidget {
   final List<FacturaModel> facturas;
@@ -83,7 +84,7 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
     for (var factura in widget.facturas) {
       for (var item in factura.items) {
         if (!resumen.containsKey(item.productoId)) {
-          resumen[item.productoId] = {
+          resumen[item.productoId!] = {
             'nombreProducto': item.nombreProducto,
             'precioUnitario': item.precioUnitario,
             'cantidadTotal': 0,
@@ -151,6 +152,173 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
     return categoriasUsadas;
   }
 
+  void _mostrarSnackBar(String mensaje, {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isSuccess ? Icons.check_circle : (isError ? Icons.error : Icons.info),
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(mensaje)),
+          ],
+        ),
+        backgroundColor: isSuccess ? AppColors.accent : (isError ? AppColors.error : AppColors.primary),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(milliseconds: 2000),
+      ),
+    );
+  }
+
+  Future<void> _imprimirResumen() async {
+    try {
+      final resumen = _calcularResumenProductos();
+
+      // Mostrar diálogo de búsqueda
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: AppColors.primary),
+                SizedBox(height: 16),
+                Text('Buscando impresora...', style: TextStyle(color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      List<BluetoothDevice> impresoras = await EscPosService.escanearImpresorasBluetooth();
+
+      if (mounted) {
+        Navigator.pop(context);
+      }
+
+      if (impresoras.isEmpty) {
+        if (mounted) {
+          _mostrarSnackBar('No se encontraron impresoras Bluetooth', isError: true);
+        }
+        return;
+      }
+
+      if (mounted) {
+        final impresoraSeleccionada = await showDialog<BluetoothDevice>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.print_outlined, color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('Seleccionar Impresora'),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: impresoras.length,
+                  itemBuilder: (context, index) {
+                    final impresora = impresoras[index];
+                    return ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.print_outlined, color: AppColors.primary, size: 20),
+                      ),
+                      title: Text(
+                        impresora.platformName.isNotEmpty ? impresora.platformName : 'Impresora ${index + 1}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(impresora.remoteId.toString(), style: const TextStyle(fontSize: 12)),
+                      onTap: () => Navigator.pop(context, impresora),
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
+                ),
+              ],
+            );
+          },
+        );
+
+        if (impresoraSeleccionada == null) return;
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            ),
+          );
+        }
+
+        // Conectar a la impresora
+        final connectResult = await EscPosService.connectToDevice(impresoraSeleccionada);
+
+        if (connectResult != BluetoothConnectionResult.success) {
+          if (mounted) {
+            Navigator.pop(context);
+            _mostrarSnackBar('Error al conectar: ${connectResult.name}', isError: true);
+          }
+          return;
+        }
+
+        // Generar e imprimir
+        final bytes = await EscPosService.generarResumenProductosEscPos(
+          widget.fecha,
+          resumen,
+          widget.facturas.length,
+        );
+
+        await EscPosService.sendPrintData(bytes);
+        await Future.delayed(const Duration(seconds: 2));
+        await EscPosService.disconnectPrinter();
+
+        if (mounted) {
+          Navigator.pop(context);
+          _mostrarSnackBar('Resumen impreso correctamente', isSuccess: true);
+        }
+      }
+    } catch (e) {
+      await EscPosService.disconnectPrinter();
+      if (mounted) {
+        Navigator.of(context).pop();
+        _mostrarSnackBar('Error: $e', isError: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final resumen = _calcularResumenProductos();
@@ -173,6 +341,13 @@ class _ResumenProductosDiaPageState extends State<ResumenProductosDiaPage> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
         ),
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print_outlined, color: AppColors.primary),
+            onPressed: _imprimirResumen,
+            tooltip: 'Imprimir resumen',
+          ),
+        ],
       ),
       body: Column(
         children: [

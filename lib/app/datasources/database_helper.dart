@@ -491,4 +491,78 @@ class DatabaseHelper {
       throw Exception('Error al obtener facturas del cliente: $e');
     }
   }
+
+  // ============= MÉTODO PARA EXPORTAR DATOS =============
+
+  Future<Map<String, dynamic>> exportarTodosLosDatos() async {
+    try {
+      Map<String, dynamic> todosLosDatos = {};
+
+      // Exportar clientes
+      final clientesSnapshot = await _firestore
+          .collection(clientesCol)
+          .orderBy('nombre')
+          .get();
+
+      todosLosDatos['clientes'] = clientesSnapshot.docs.map((doc) {
+        return {
+          'id': doc.id,
+          ...doc.data(),
+        };
+      }).toList();
+
+      // Exportar categorías
+      final categoriasSnapshot = await _firestore
+          .collection(categoriasCol)
+          .orderBy('nombre')
+          .get();
+
+      todosLosDatos['categorias'] = categoriasSnapshot.docs.map((doc) {
+        return {
+          'id': doc.id,
+          ...doc.data(),
+        };
+      }).toList();
+
+      // Exportar productos
+      final productosSnapshot = await _firestore
+          .collection(productosCol)
+          .orderBy('nombre')
+          .get();
+
+      todosLosDatos['productos'] = productosSnapshot.docs.map((doc) {
+        return {
+          'id': doc.id,
+          ...doc.data(),
+        };
+      }).toList();
+
+      // Exportar facturas
+      final facturasSnapshot = await _firestore
+          .collection(facturasCol)
+          .orderBy('fecha', descending: true)
+          .get();
+
+      todosLosDatos['facturas'] = facturasSnapshot.docs.map((doc) {
+        return {
+          'id': doc.id,
+          ...doc.data(),
+        };
+      }).toList();
+
+      // Agregar metadata
+      todosLosDatos['metadata'] = {
+        'fechaExportacion': DateTime.now().toIso8601String(),
+        'totalClientes': todosLosDatos['clientes'].length,
+        'totalCategorias': todosLosDatos['categorias'].length,
+        'totalProductos': todosLosDatos['productos'].length,
+        'totalFacturas': todosLosDatos['facturas'].length,
+      };
+
+      return todosLosDatos;
+    } catch (e) {
+      throw Exception('Error al exportar datos: $e');
+    }
+  }
+
 }

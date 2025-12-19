@@ -6,8 +6,8 @@ class ProductoModel {
   final double precio;
   final int? cantidadPorPaca;
   final String? imagenPath;
-  final String? codigoBarras; // Código principal (deprecado pero mantenido por compatibilidad)
-  final Map<String, String>? codigosPorSabor; // ← NUEVO: Mapa de sabor -> código de barras
+  final String? codigoBarras;
+  final Map<String, String>? codigosPorSabor;
 
   ProductoModel({
     this.id,
@@ -18,9 +18,10 @@ class ProductoModel {
     this.cantidadPorPaca,
     this.imagenPath,
     this.codigoBarras,
-    this.codigosPorSabor, // ← NUEVO
+    this.codigosPorSabor,
   });
 
+  // ✅ Para Firestore (sin ID - Firestore lo genera automáticamente)
   Map<String, dynamic> toMap() {
     return {
       'nombre': nombre,
@@ -30,22 +31,55 @@ class ProductoModel {
       'cantidadPorPaca': cantidadPorPaca,
       'imagenPath': imagenPath,
       'codigoBarras': codigoBarras,
-      'codigosPorSabor': codigosPorSabor, // ← NUEVO
+      'codigosPorSabor': codigosPorSabor,
     };
   }
 
+  // ✅ Para Caché (con ID incluido)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,  // ⬅️ INCLUIR ID para el caché
+      'nombre': nombre,
+      'categoriaId': categoriaId,
+      'sabores': sabores,
+      'precio': precio,
+      'cantidadPorPaca': cantidadPorPaca,
+      'imagenPath': imagenPath,
+      'codigoBarras': codigoBarras,
+      'codigosPorSabor': codigosPorSabor,
+    };
+  }
+
+  // ✅ Crear desde Map (para Firestore - ID viene como parámetro)
   factory ProductoModel.fromMap(Map<String, dynamic> map, String docId) {
     return ProductoModel(
       id: docId,
-      nombre: map['nombre'] as String,
-      categoriaId: map['categoriaId'] as String,
-      sabores: List<String>.from(map['sabores'] as List),
-      precio: (map['precio'] as num).toDouble(),
+      nombre: map['nombre'] as String? ?? '',  // ⬅️ Valor por defecto
+      categoriaId: map['categoriaId'] as String? ?? '',
+      sabores: (map['sabores'] as List?)?.cast<String>() ?? [],
+      precio: (map['precio'] as num?)?.toDouble() ?? 0.0,
       cantidadPorPaca: map['cantidadPorPaca'] as int?,
       imagenPath: map['imagenPath'] as String?,
       codigoBarras: map['codigoBarras'] as String?,
-      codigosPorSabor: map['codigosPorSabor'] != null // ← NUEVO
+      codigosPorSabor: map['codigosPorSabor'] != null
           ? Map<String, String>.from(map['codigosPorSabor'] as Map)
+          : null,
+    );
+  }
+
+  // ✅ Crear desde JSON (para Caché - ID está dentro del JSON)
+  factory ProductoModel.fromJson(Map<String, dynamic> json) {
+    return ProductoModel(
+      id: json['id'] as String?,  // ⬅️ ID viene del JSON
+      nombre: json['nombre'] as String? ?? '',
+      categoriaId: json['categoriaId'] as String? ?? '',
+      sabores: (json['sabores'] as List?)?.cast<String>() ?? [],
+      precio: (json['precio'] as num?)?.toDouble() ?? 0.0,
+      cantidadPorPaca: json['cantidadPorPaca'] as int?,
+      imagenPath: json['imagenPath'] as String?,
+      codigoBarras: json['codigoBarras'] as String?,
+      codigosPorSabor: json['codigosPorSabor'] != null
+          ? Map<String, String>.from(json['codigosPorSabor'] as Map)
           : null,
     );
   }
@@ -59,7 +93,7 @@ class ProductoModel {
     int? cantidadPorPaca,
     String? imagenPath,
     String? codigoBarras,
-    Map<String, String>? codigosPorSabor, // ← NUEVO
+    Map<String, String>? codigosPorSabor,
   }) {
     return ProductoModel(
       id: id ?? this.id,
@@ -70,11 +104,11 @@ class ProductoModel {
       cantidadPorPaca: cantidadPorPaca ?? this.cantidadPorPaca,
       imagenPath: imagenPath ?? this.imagenPath,
       codigoBarras: codigoBarras ?? this.codigoBarras,
-      codigosPorSabor: codigosPorSabor ?? this.codigosPorSabor, // ← NUEVO
+      codigosPorSabor: codigosPorSabor ?? this.codigosPorSabor,
     );
   }
 
-  // ← NUEVO: Método helper para obtener todos los códigos de barras
+  // Método helper para obtener todos los códigos de barras
   List<String> obtenerTodosLosCodigos() {
     final List<String> codigos = [];
 
@@ -91,7 +125,7 @@ class ProductoModel {
     return codigos;
   }
 
-  // ← NUEVO: Método helper para obtener el sabor de un código
+  // Método helper para obtener el sabor de un código
   String? obtenerSaborPorCodigo(String codigo) {
     if (codigosPorSabor == null) return null;
 
@@ -103,4 +137,7 @@ class ProductoModel {
 
     return null;
   }
+
+  @override
+  String toString() => 'ProductoModel(id: $id, nombre: $nombre, categoriaId: $categoriaId)';
 }

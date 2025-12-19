@@ -7,17 +7,18 @@ class CategoriaModel {
     required this.nombre,
   });
 
-  // Convertir a Map (para guardar en Firestore)
+  // ✅ FIX: Incluir el ID en toMap para que se guarde en caché
   Map<String, dynamic> toMap() {
     return {
+      'id': id,        // ⬅️ ESTO ES CRÍTICO
       'nombre': nombre,
     };
   }
 
-  // Crear desde Map (para leer de Firestore)
+  // ✅ FIX: Asegurar que el ID se lea correctamente
   factory CategoriaModel.fromMap(Map<String, dynamic> map) {
     return CategoriaModel(
-      id: map['id'],
+      id: map['id'] as String?,  // ⬅️ Conversión explícita
       nombre: map['nombre'] as String,
     );
   }
@@ -33,6 +34,15 @@ class CategoriaModel {
     );
   }
 
+  // ✅ Método adicional para JSON (usado por el caché)
+  Map<String, dynamic> toJson() => toMap();
+
+  factory CategoriaModel.fromJson(Map<String, dynamic> json) =>
+      CategoriaModel.fromMap(json);
+
   @override
   String toString() => 'CategoriaModel(id: $id, nombre: $nombre)';
+
+  // ✅ Método útil para debugging
+  bool get tieneIdValido => id != null && id!.isNotEmpty;
 }

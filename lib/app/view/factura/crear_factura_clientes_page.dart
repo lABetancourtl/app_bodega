@@ -1,27 +1,30 @@
-import 'package:app_bodega/app/datasources/database_helper.dart';
-import 'package:app_bodega/app/model/cliente_model.dart';
-import 'package:app_bodega/app/model/factura_model.dart';
-import 'package:app_bodega/app/model/prodcuto_model.dart';
-import 'package:app_bodega/app/view/factura/agregar_prodcuto_factura_page.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../datasources/database_helper.dart';
+import '../../model/cliente_model.dart';
+import '../../model/factura_model.dart';
+import '../../model/prodcuto_model.dart';
+import '../../providers/factura_providers.dart';
+import '../../view/factura/agregar_prodcuto_factura_page.dart';
 import 'package:flutter/material.dart';
-import 'package:app_bodega/app/theme/app_colors.dart';
-
-
+import '../../theme/app_colors.dart';
+import 'factura_page.dart';
 import 'seleccionar_cliente_page.dart';
+// import 'factura_mobile.dart';
 
-
-class CrearFacturaPage extends StatefulWidget {
-  const CrearFacturaPage({super.key});
+class CrearFacturaMobile extends ConsumerStatefulWidget {
+  const CrearFacturaMobile({super.key});
 
   @override
-  State<CrearFacturaPage> createState() => _CrearFacturaPageState();
+  ConsumerState<CrearFacturaMobile> createState() => _CrearFacturaMobileState();
 }
 
-class _CrearFacturaPageState extends State<CrearFacturaPage> {
+class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   ClienteModel? clienteSeleccionado;
   List<ItemFacturaModel> items = [];
+  bool esFacturaLimpia = false;
 
   String _formatearPrecio(double precio) {
     final precioInt = precio.toInt();
@@ -49,12 +52,92 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
-        duration: const Duration(milliseconds: 2000),
+        duration: const Duration(milliseconds: 700),
       ),
     );
   }
 
-  void _seleccionarCliente() async {
+  // Mostrar menú de selección de tipo de factura
+  void _mostrarMenuTipoFactura() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Seleccionar Cliente',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person, color: AppColors.primary, size: 24),
+              ),
+              title: const Text('Cliente Registrado', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              subtitle: const Text('Seleccionar de la lista de clientes', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _seleccionarClienteRegistrado();
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person_add_outlined, color: AppColors.primary, size: 24),
+              ),
+              title: const Text('Factura Limpia', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              subtitle: const Text('Cliente ocasional sin registro', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _mostrarFormularioClienteLimpio();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Seleccionar cliente registrado
+  void _seleccionarClienteRegistrado() async {
     final cliente = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const SeleccionarClientePage()),
@@ -63,16 +146,262 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
     if (cliente != null) {
       setState(() {
         clienteSeleccionado = cliente;
+        esFacturaLimpia = false;
       });
     }
   }
 
-  void _agregarProducto() async {
-    // if (clienteSeleccionado == null) {
-    //   _mostrarSnackBar('Por favor selecciona un cliente primero', isError: true);
-    //   return;
-    // }
+  // Mostrar formulario para cliente ocasional (factura limpia)
+  void _mostrarFormularioClienteLimpio() async {
+    final formKey = GlobalKey<FormState>();
+    final nombreController = TextEditingController(text: clienteSeleccionado?.nombre ?? '');
+    final negocioController = TextEditingController(text: clienteSeleccionado?.nombreNegocio ?? '');
+    final direccionController = TextEditingController(text: clienteSeleccionado?.direccion ?? '');
+    final telefonoController = TextEditingController(text: clienteSeleccionado?.telefono ?? '');
+    final observacionesController = TextEditingController(text: clienteSeleccionado?.observaciones ?? '');
 
+    final resultado = await showModalBottomSheet<ClienteModel>(
+      context: context,
+      isScrollControlled: true, // ✅ IMPORTANTE: Permitir scroll
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: DraggableScrollableSheet( // ✅ USAR DraggableScrollableSheet
+          initialChildSize: 0.9, // Tamaño inicial (90% de la pantalla)
+          minChildSize: 0.5,     // Tamaño mínimo (50%)
+          maxChildSize: 0.95,    // Tamaño máximo (95%)
+          expand: false,
+          builder: (context, scrollController) {
+            return SingleChildScrollView( // ✅ Hacer scroll al contenido
+              controller: scrollController,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(top: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.person_add, color: AppColors.primary, size: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Datos del Cliente',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                ),
+                                Text(
+                                  'Ingresa la información del cliente',
+                                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: nombreController,
+                            autofocus: true,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: 'Nombre del Cliente',
+                              labelStyle: const TextStyle(color: AppColors.textSecondary),
+                              prefixIcon: const Icon(Icons.person, color: AppColors.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'El nombre del cliente es requerido';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: negocioController,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: 'Nombre del Negocio',
+                              labelStyle: const TextStyle(color: AppColors.textSecondary),
+                              prefixIcon: const Icon(Icons.store, color: AppColors.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'El nombre del negocio es requerido';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: direccionController,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: 'Dirección',
+                              labelStyle: const TextStyle(color: AppColors.textSecondary),
+                              prefixIcon: const Icon(Icons.location_on, color: AppColors.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'La dirección es requerida';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: telefonoController,
+                            keyboardType: TextInputType.phone,
+                            decoration: InputDecoration(
+                              labelText: 'Teléfono',
+                              labelStyle: const TextStyle(color: AppColors.textSecondary),
+                              prefixIcon: const Icon(Icons.phone, color: AppColors.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'El teléfono es requerido';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: observacionesController,
+                            textCapitalization: TextCapitalization.sentences,
+                            maxLines: 2,
+                            decoration: InputDecoration(
+                              labelText: 'Observaciones (opcional)',
+                              labelStyle: const TextStyle(color: AppColors.textSecondary),
+                              prefixIcon: const Icon(Icons.note, color: AppColors.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: const BorderSide(color: AppColors.border),
+                                ),
+                              ),
+                              child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                if (formKey.currentState!.validate()) {
+                                  final clienteTemporal = ClienteModel(
+                                    id: null,
+                                    nombre: nombreController.text.trim(),
+                                    nombreNegocio: negocioController.text.trim(),
+                                    direccion: direccionController.text.trim(),
+                                    telefono: telefonoController.text.trim(),
+                                    ruta: Ruta.ruta1,
+                                    observaciones: observacionesController.text.trim().isEmpty
+                                        ? null
+                                        : observacionesController.text.trim(),
+                                  );
+                                  Navigator.pop(context, clienteTemporal);
+                                }
+                              },
+                              icon: const Icon(Icons.check, size: 18),
+                              label: const Text('Guardar'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    if (resultado != null) {
+      setState(() {
+        clienteSeleccionado = resultado;
+        esFacturaLimpia = true;
+      });
+      _mostrarSnackBar('Datos del cliente guardados', isSuccess: true);
+    }
+  }
+
+  void _agregarProducto() async {
     final resultado = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -162,7 +491,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
 
   void _guardarFactura() async {
     if (clienteSeleccionado == null) {
-      _mostrarSnackBar('Por favor selecciona un cliente', isError: true);
+      _mostrarSnackBar('Por favor completa los datos del cliente', isError: true);
       return;
     }
 
@@ -171,8 +500,11 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       return;
     }
 
+    // Calcular el total
+    double totalCalculado = items.fold(0, (sum, item) => sum + item.subtotal);
+
     final factura = FacturaModel(
-      clienteId: clienteSeleccionado!.id!,
+      clienteId: esFacturaLimpia ? '' : (clienteSeleccionado!.id ?? ''),
       nombreCliente: clienteSeleccionado!.nombre,
       direccionCliente: clienteSeleccionado!.direccion,
       telefonoCliente: clienteSeleccionado!.telefono,
@@ -180,17 +512,27 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       observacionesCliente: clienteSeleccionado!.observaciones,
       fecha: DateTime.now(),
       items: items,
-      estado: 'pendiente',
+      estado: 'preventa',
     );
 
     try {
-      await _dbHelper.insertarFactura(factura);
+      // Guardar en Supabase y obtener el ID
+      final facturaId = await _dbHelper.insertarFactura(factura);
 
       if (mounted) {
+        // Crear factura con el ID usando copyWith
+        final facturaConId = factura.copyWith(id: facturaId);
+
+        // ✅ AGREGAR SOLO ESTA FACTURA sin recargar todo
+        ref.read(facturasStateProvider.notifier).agregarFactura(facturaConId);
+
         _mostrarSnackBar('Factura guardada para ${clienteSeleccionado!.nombre}', isSuccess: true);
-        Future.delayed(const Duration(seconds: 1), () {
+
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        if (mounted) {
           Navigator.pop(context, true);
-        });
+        }
       }
     } catch (e) {
       _mostrarSnackBar('Error al guardar: $e', isError: true);
@@ -199,7 +541,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
 
   void _editarProducto(int index) async {
     final itemActual = items[index];
-    final producto = await _dbHelper.obtenerProductoPorId(itemActual.productoId);
+    final producto = await _dbHelper.obtenerProductoPorId(itemActual.productoId!);
 
     if (producto == null) {
       if (mounted) {
@@ -255,16 +597,17 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(top: 12, left: 0, right: 0),
-                    decoration: BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.circular(2),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  ).wrapCenter(),
-                  // Header
+                  ),
                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: Row(
@@ -301,7 +644,6 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                     ),
                   ),
                   const Divider(height: 1),
-                  // Content
                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -387,7 +729,6 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                           }).toList(),
                           const Divider(height: 24),
                         ],
-                        // Total
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -429,7 +770,6 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                       ],
                     ),
                   ),
-                  // Actions
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                     child: Row(
@@ -511,9 +851,9 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         backgroundColor: AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 1,
-        title: const Text(
-          'Nueva Factura',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary),
+        title: Text(
+          esFacturaLimpia ? 'Factura Limpia' : 'Nueva Factura',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary),
         ),
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         actions: [
@@ -539,7 +879,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: GestureDetector(
-              onTap: _seleccionarCliente,
+              onTap: _mostrarMenuTipoFactura,
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -561,7 +901,9 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
-                        clienteSeleccionado == null ? Icons.person_add : Icons.check_circle,
+                        clienteSeleccionado == null
+                            ? Icons.person_add
+                            : (esFacturaLimpia ? Icons.person_outline : Icons.check_circle),
                         color: clienteSeleccionado == null ? AppColors.primary : AppColors.accent,
                         size: 24,
                       ),
@@ -572,7 +914,9 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            clienteSeleccionado == null ? 'Seleccionar Cliente' : clienteSeleccionado!.nombreNegocio ?? clienteSeleccionado!.nombre,
+                            clienteSeleccionado == null
+                                ? 'Seleccionar Cliente'
+                                : clienteSeleccionado!.nombreNegocio ?? clienteSeleccionado!.nombre,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -582,14 +926,18 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                           const SizedBox(height: 2),
                           Text(
                             clienteSeleccionado == null
-                                ? 'Toca para seleccionar un cliente'
-                                : clienteSeleccionado!.nombre,
+                                ? 'Toca para seleccionar'
+                                : '${clienteSeleccionado!.nombre}${esFacturaLimpia ? ' (Ocasional)' : ''}',
                             style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+                    Icon(
+                      clienteSeleccionado == null ? Icons.chevron_right : Icons.edit,
+                      color: clienteSeleccionado == null ? AppColors.textSecondary : AppColors.accent,
+                      size: 20,
+                    ),
                   ],
                 ),
               ),
@@ -807,12 +1155,5 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         ],
       ),
     );
-  }
-}
-
-// Extension para centrar widgets
-extension WidgetExtension on Widget {
-  Widget wrapCenter() {
-    return Center(child: this);
   }
 }

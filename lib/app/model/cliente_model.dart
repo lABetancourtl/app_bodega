@@ -10,8 +10,8 @@ class ClienteModel {
   final String telefono;
   final Ruta ruta;
   final String? observaciones;
-  final double? latitud;    // NUEVO: Latitud del negocio
-  final double? longitud;   // NUEVO: Longitud del negocio
+  final double? latitud;
+  final double? longitud;
 
   ClienteModel({
     this.id,
@@ -21,11 +21,11 @@ class ClienteModel {
     required this.telefono,
     required this.ruta,
     this.observaciones,
-    this.latitud,       // NUEVO
-    this.longitud,      // NUEVO
+    this.latitud,
+    this.longitud,
   });
 
-  // Convertir a Map (para guardar en Firestore)
+  // ✅ Para Firestore (sin ID - Firestore lo genera automáticamente)
   Map<String, dynamic> toMap() {
     return {
       'nombre': nombre,
@@ -34,26 +34,59 @@ class ClienteModel {
       'telefono': telefono,
       'ruta': ruta.toString().split('.').last,
       'observaciones': observaciones,
-      'latitud': latitud,    // NUEVO
-      'longitud': longitud,  // NUEVO
+      'latitud': latitud,
+      'longitud': longitud,
     };
   }
 
-  // Crear desde Map (para leer de Firestore)
+  // ✅ Para Caché (con ID incluido)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,  // ⬅️ INCLUIR ID para el caché
+      'nombre': nombre,
+      'nombreNegocio': nombreNegocio,
+      'direccion': direccion,
+      'telefono': telefono,
+      'ruta': ruta.toString().split('.').last,
+      'observaciones': observaciones,
+      'latitud': latitud,
+      'longitud': longitud,
+    };
+  }
+
+  // ✅ Crear desde Map (para Firestore - ID viene como parámetro)
   factory ClienteModel.fromMap(Map<String, dynamic> map, String docId) {
     return ClienteModel(
       id: docId,
-      nombre: map['nombre'] as String,
-      nombreNegocio: map['nombreNegocio'] as String,
-      direccion: map['direccion'] as String,
-      telefono: map['telefono'] as String,
+      nombre: map['nombre'] as String? ?? '',  // ⬅️ Valor por defecto
+      nombreNegocio: map['nombreNegocio'] as String? ?? '',
+      direccion: map['direccion'] as String? ?? '',
+      telefono: map['telefono'] as String? ?? '',
       ruta: Ruta.values.firstWhere(
             (e) => e.toString().split('.').last == map['ruta'],
         orElse: () => Ruta.ruta1,
       ),
       observaciones: map['observaciones'] as String?,
-      latitud: (map['latitud'] as num?)?.toDouble(),    // NUEVO
-      longitud: (map['longitud'] as num?)?.toDouble(),  // NUEVO
+      latitud: (map['latitud'] as num?)?.toDouble(),
+      longitud: (map['longitud'] as num?)?.toDouble(),
+    );
+  }
+
+  // ✅ Crear desde JSON (para Caché - ID está dentro del JSON)
+  factory ClienteModel.fromJson(Map<String, dynamic> json) {
+    return ClienteModel(
+      id: json['id'] as String?,  // ⬅️ ID viene del JSON
+      nombre: json['nombre'] as String? ?? '',
+      nombreNegocio: json['nombreNegocio'] as String? ?? '',
+      direccion: json['direccion'] as String? ?? '',
+      telefono: json['telefono'] as String? ?? '',
+      ruta: Ruta.values.firstWhere(
+            (e) => e.toString().split('.').last == json['ruta'],
+        orElse: () => Ruta.ruta1,
+      ),
+      observaciones: json['observaciones'] as String?,
+      latitud: (json['latitud'] as num?)?.toDouble(),
+      longitud: (json['longitud'] as num?)?.toDouble(),
     );
   }
 
