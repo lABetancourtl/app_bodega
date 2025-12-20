@@ -13,7 +13,12 @@ import 'seleccionar_cliente_page.dart';
 // import 'factura_mobile.dart';
 
 class CrearFacturaMobile extends ConsumerStatefulWidget {
-  const CrearFacturaMobile({super.key});
+  final List<ItemFacturaModel>? itemsIniciales;
+
+  const CrearFacturaMobile({
+    super.key,
+    this.itemsIniciales,
+  });
 
   @override
   ConsumerState<CrearFacturaMobile> createState() => _CrearFacturaMobileState();
@@ -25,6 +30,23 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
   ClienteModel? clienteSeleccionado;
   List<ItemFacturaModel> items = [];
   bool esFacturaLimpia = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.itemsIniciales != null && widget.itemsIniciales!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          items = List.from(widget.itemsIniciales!);
+        });
+        _mostrarSnackBar(
+          'Pedido cargado: ${items.length} producto${items.length != 1 ? 's' : ''}',
+          isSuccess: true,
+        );
+      });
+    }
+  }
 
   String _formatearPrecio(double precio) {
     final precioInt = precio.toInt();

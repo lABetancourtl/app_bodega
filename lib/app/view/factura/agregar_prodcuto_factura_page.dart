@@ -12,6 +12,7 @@ import 'package:app_bodega/app/theme/app_colors.dart';
 import '../../providers/cache_providers.dart';
 
 
+import '../../widgets/imagen_viewer_widget.dart';
 import '../barcode/barcode_scaner_page.dart';
 
 
@@ -343,18 +344,18 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
       context: context,
       barrierDismissible: false,
       builder: (context) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: AppColors.primary),
-              SizedBox(height: 16),
-              Text('Buscando...', style: TextStyle(color: AppColors.textSecondary)),
-            ],
-          ),
-        ),
+        // child: Container(
+        //   padding: const EdgeInsets.all(24),
+        //   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+        //   child: const Column(
+        //     mainAxisSize: MainAxisSize.min,
+        //     // children: [
+        //     //   CircularProgressIndicator(color: AppColors.primary),
+        //     //   SizedBox(height: 16),
+        //     //   Text('Buscando...', style: TextStyle(color: AppColors.textSecondary)),
+        //     // ],
+        //   ),
+        // ),
       ),
     );
 
@@ -1085,55 +1086,15 @@ class _ProductoCard extends StatelessWidget {
   }
   void _verImagenProducto(BuildContext context, ProductoModel producto) {
     if (producto.imagenPath != null && producto.imagenPath!.isNotEmpty) {
-      Widget imageWidget = const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.image_not_supported,
-              size: 80,
-              color: Colors.grey,
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Imagen no disponible',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
-            ),
-          ],
-        ),
-      );
-
-      if (producto.imagenPath!.startsWith('http')) {
-        imageWidget = Image.network(producto.imagenPath!, fit: BoxFit.contain);
-      } else {
-        final file = File(producto.imagenPath!);
-        if (file.existsSync()) {
-          imageWidget = Image.file(file, fit: BoxFit.contain);
-        }
-      }
-
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => Scaffold(
-            backgroundColor: Colors.black,
-            appBar: AppBar(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              title: Text(producto.nombre, style: const TextStyle(fontSize: 16)),
-            ),
-            body: Center(
-              child: InteractiveViewer(
-                boundaryMargin: const EdgeInsets.all(20),
-                minScale: 0.5,
-                maxScale: 4,
-                child: imageWidget, // Ahora imageWidget siempre tendrá un valor
-              ),
-            ),
+          builder: (context) => ImagenViewerPage(
+            imagenPath: producto.imagenPath,
+            titulo: producto.nombre,
           ),
         ),
       );
     }
-
   }
 }

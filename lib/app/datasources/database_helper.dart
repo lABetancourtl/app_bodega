@@ -355,7 +355,7 @@ class DatabaseHelper {
   }
 
   Future<List<FacturaModel>> obtenerFacturas({
-    int limit = 20,
+    int limit = 150,
     DocumentSnapshot? lastDocument,
   }) async {
     try {
@@ -465,13 +465,12 @@ class DatabaseHelper {
     }
   }
 
-  Future<List<FacturaModel>> obtenerFacturasPorCliente(String clienteId, {int limit = 3}) async {
+  Future<List<FacturaModel>> obtenerFacturasPorCliente(String clienteId) async {
     try {
       final snapshot = await _firestore
           .collection(facturasCol)
           .where('clienteId', isEqualTo: clienteId)
           .orderBy('fecha', descending: true)
-          .limit(limit)
           .get();
 
       List<FacturaModel> facturas = [];

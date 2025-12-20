@@ -12,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibration/vibration.dart';
 import '../../providers/cache_providers.dart';
+import '../../service/catalogo_pdf_service.dart';
+import '../../widgets/imagen_viewer_widget.dart';
 import '../barcode/barcode_scaner_page.dart' as scanner;
 import 'package:app_bodega/app/theme/app_colors.dart';
 
@@ -88,6 +90,204 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
     return precioInt.toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
           (match) => '.',
+    );
+  }
+
+  Future<void> _generarCatalogoPDF(List<CategoriaModel> categorias) async {
+    // Mostrar diálogo de carga
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              CircularProgressIndicator(color: AppColors.primary),
+              SizedBox(height: 16),
+              Text(
+                'Generando catálogo PDF...',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Esto puede tardar unos segundos',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final dbHelper = DatabaseHelper();
+
+      // Cargar todos los productos por categoría
+      Map<String, List<ProductoModel>> productosPorCategoria = {};
+
+      for (var categoria in categorias) {
+        final productos = await dbHelper.obtenerProductosPorCategoria(categoria.id!);
+        productosPorCategoria[categoria.id!] = productos;
+      }
+
+      // Generar PDF
+      final pdfFile = await CatalogoPdfService.generarCatalogoPDF(
+        categorias: categorias,
+        productosPorCategoria: productosPorCategoria,
+        nombreNegocio: 'Mi Bodega', // Puedes parametrizar esto
+        telefonoContacto: null, // Agrega tu número si lo deseas
+      );
+
+      // Cerrar diálogo de carga
+      Navigator.pop(context);
+
+      // Mostrar opciones
+      _mostrarOpcionesPDF(pdfFile);
+    } catch (e) {
+      // Cerrar diálogo de carga
+      Navigator.pop(context);
+
+      _mostrarSnackBar('Error al generar PDF: $e', isError: true);
+    }
+  }
+
+  void _mostrarOpcionesPDF(File pdfFile) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.picture_as_pdf,
+                      color: AppColors.accent,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'PDF Generado',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Catálogo de productos',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 24),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.share,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              title: const Text('Compartir PDF'),
+              subtitle: const Text('Enviar por WhatsApp, email, etc.'),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                try {
+                  await CatalogoPdfService.compartirPDF(pdfFile);
+                  _mostrarSnackBar('Compartiendo catálogo...', isSuccess: true);
+                } catch (e) {
+                  _mostrarSnackBar('Error al compartir: $e', isError: true);
+                }
+              },
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.visibility,
+                  color: AppColors.accent,
+                  size: 20,
+                ),
+              ),
+              title: const Text('Ver PDF'),
+              subtitle: Text(
+                'Ubicación: ${pdfFile.path.split('/').last}',
+                style: const TextStyle(fontSize: 11),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _mostrarSnackBar('PDF guardado en: ${pdfFile.path}');
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
     );
   }
 
@@ -559,54 +759,12 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
 
   void _verImagenProducto(BuildContext context, ProductoModel producto) {
     if (producto.imagenPath != null && producto.imagenPath!.isNotEmpty) {
-      Widget imageWidget;
-
-      if (producto.imagenPath!.startsWith('http')) {
-        imageWidget = CachedNetworkImage(
-          imageUrl: producto.imagenPath!,
-          fit: BoxFit.contain,
-          placeholder: (context, url) => const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          ),
-          errorWidget: (context, url, error) => const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.image_not_supported, size: 80, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('Imagen no disponible', style: TextStyle(color: Colors.grey, fontSize: 16)),
-              ],
-            ),
-          ),
-        );
-      } else {
-        final file = File(producto.imagenPath!);
-        if (file.existsSync()) {
-          imageWidget = Image.file(file, fit: BoxFit.contain);
-        } else {
-          _mostrarSnackBar('Este producto no tiene imagen');
-          return;
-        }
-      }
-
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => Scaffold(
-            backgroundColor: Colors.black,
-            appBar: AppBar(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              title: Text(producto.nombre, style: const TextStyle(fontSize: 16)),
-            ),
-            body: Center(
-              child: InteractiveViewer(
-                boundaryMargin: const EdgeInsets.all(20),
-                minScale: 0.5,
-                maxScale: 4,
-                child: imageWidget,
-              ),
-            ),
+          builder: (context) => ImagenViewerPage(
+            imagenPath: producto.imagenPath,
+            titulo: producto.nombre,
           ),
         ),
       );
@@ -641,7 +799,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
               child: Row(
                 children: [
                   Text(
-                    'Crear nuevo',
+                    'Opciones',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -652,6 +810,16 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
               ),
             ),
             const Divider(height: 1),
+            _buildMenuOption(
+              icon: Icons.picture_as_pdf,
+              iconColor: AppColors.primary,
+              title: 'Generar Catálogo PDF',
+              subtitle: 'Crear PDF con todos los productos',
+              onTap: () {
+                Navigator.pop(context);
+                _generarCatalogoPDF(categorias);
+              },
+            ),
             _buildMenuOption(
               icon: Icons.category_outlined,
               iconColor: AppColors.primary,
@@ -1447,3 +1615,136 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
 
 
 }
+
+// // ============= PÁGINA PARA VER IMÁGENES =============
+// class _ImagenViewerPage extends StatefulWidget {
+//   final Widget imageWidget;
+//   final String productoNombre;
+//
+//   const _ImagenViewerPage({
+//     required this.imageWidget,
+//     required this.productoNombre,
+//   });
+//
+//   @override
+//   State<_ImagenViewerPage> createState() => _ImagenViewerPageState();
+// }
+//
+// class _ImagenViewerPageState extends State<_ImagenViewerPage> {
+//   final TransformationController _transformationController = TransformationController();
+//   TapDownDetails? _doubleTapDetails;
+//   bool _showControls = true;
+//
+//   @override
+//   void dispose() {
+//     _transformationController.dispose();
+//     super.dispose();
+//   }
+//
+//   void _handleDoubleTapDown(TapDownDetails details) {
+//     _doubleTapDetails = details;
+//   }
+//
+//   void _handleDoubleTap() {
+//     if (_transformationController.value != Matrix4.identity()) {
+//       // Si está con zoom, resetear
+//       _transformationController.value = Matrix4.identity();
+//     } else {
+//       // Si está normal, hacer zoom 2.5x en el punto tocado
+//       final position = _doubleTapDetails!.localPosition;
+//
+//       _transformationController.value = Matrix4.identity()
+//         ..translate(-position.dx * 1.5, -position.dy * 1.5)
+//         ..scale(2.5);
+//     }
+//   }
+//
+//   void _toggleControls() {
+//     setState(() {
+//       _showControls = !_showControls;
+//     });
+//   }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       backgroundColor: Colors.black,
+//       body: Stack(
+//         children: [
+//           // Imagen centrada en toda la pantalla
+//           GestureDetector(
+//             onTap: _toggleControls,
+//             onDoubleTapDown: _handleDoubleTapDown,
+//             onDoubleTap: _handleDoubleTap,
+//             child: InteractiveViewer(
+//               transformationController: _transformationController,
+//               minScale: 0.5,
+//               maxScale: 4.0,
+//               boundaryMargin: const EdgeInsets.all(80),
+//               panEnabled: true,
+//               scaleEnabled: true,
+//               child: SizedBox(
+//                 width: MediaQuery.of(context).size.width,
+//                 height: MediaQuery.of(context).size.height,
+//                 child: Center(
+//                   child: widget.imageWidget,
+//                 ),
+//               ),
+//             ),
+//           ),
+//
+//           // AppBar flotante
+//           if (_showControls)
+//             Positioned(
+//               top: 0,
+//               left: 0,
+//               right: 0,
+//               child: Container(
+//                 padding: EdgeInsets.only(
+//                   top: MediaQuery.of(context).padding.top,
+//                 ),
+//                 decoration: BoxDecoration(
+//                   gradient: LinearGradient(
+//                     begin: Alignment.topCenter,
+//                     end: Alignment.bottomCenter,
+//                     colors: [
+//                       Colors.black.withOpacity(0.7),
+//                       Colors.black.withOpacity(0.3),
+//                       Colors.transparent,
+//                     ],
+//                   ),
+//                 ),
+//                 child: SafeArea(
+//                   bottom: false,
+//                   child: SizedBox(
+//                     height: kToolbarHeight,
+//                     child: Row(
+//                       children: [
+//                         IconButton(
+//                           icon: const Icon(Icons.close, color: Colors.white, size: 28),
+//                           onPressed: () => Navigator.pop(context),
+//                         ),
+//                         Expanded(
+//                           child: Text(
+//                             widget.productoNombre,
+//                             style: const TextStyle(
+//                               fontSize: 16,
+//                               color: Colors.white,
+//                               fontWeight: FontWeight.w500,
+//                             ),
+//                             maxLines: 1,
+//                             overflow: TextOverflow.ellipsis,
+//                           ),
+//                         ),
+//                         const SizedBox(width: 48), // Balance visual
+//                       ],
+//                     ),
+//                   ),
+//                 ),
+//               ),
+//             ),
+//         ],
+//       ),
+//     );
+//   }
+// }
