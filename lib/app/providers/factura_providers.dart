@@ -96,6 +96,10 @@ final facturasFiltradasProvider = Provider<List<FacturaModel>>((ref) {
     orElse: () => [],
   );
 });
+final modoSeleccionProvider = StateProvider<bool>((ref) => false);
+
+// Provider para las facturas seleccionadas
+final facturasSeleccionadasProvider = StateProvider<Set<String>>((ref) => {});
 
 // Provider para controlar si está buscando
 final isSearchingFacturasProvider = StateProvider<bool>((ref) => false);
@@ -124,6 +128,7 @@ final facturasFiltradasConBusquedaProvider = Provider<List<FacturaModel>>((ref) 
     final nombreCliente = factura.nombreCliente.toLowerCase();
     final negocio = (factura.negocioCliente ?? '').toLowerCase();
     final direccion = factura.direccionCliente.toLowerCase();
+
 
     return nombreCliente.contains(searchQuery) ||
         negocio.contains(searchQuery) ||

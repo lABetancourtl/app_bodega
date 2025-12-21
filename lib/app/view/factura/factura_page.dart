@@ -489,7 +489,7 @@ class FacturaPage extends ConsumerWidget {
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: () => Navigator.pop(sheetContext, fechaSeleccionada),
-                            icon: const Icon(Icons.print, size: 18),
+                            icon: const Icon(Icons.print_outlined, size: 18),
                             label: const Text('Imprimir'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
@@ -563,7 +563,7 @@ class FacturaPage extends ConsumerWidget {
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.print, color: AppColors.primary, size: 24),
+                    child: const Icon(Icons.print_outlined, color: AppColors.primary, size: 24),
                   ),
                   const SizedBox(width: 12),
                   const Text('Seleccionar Impresora'),
@@ -583,7 +583,7 @@ class FacturaPage extends ConsumerWidget {
                           color: AppColors.primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.print, color: AppColors.primary, size: 20),
+                        child: const Icon(Icons.print_outlined, color: AppColors.primary, size: 20),
                       ),
                       title: Text(
                         impresora.platformName.isNotEmpty ? impresora.platformName : 'Impresora ${index + 1}',
@@ -1036,7 +1036,7 @@ class FacturaPage extends ConsumerWidget {
                                 fechaSeleccionadaParaImprimir,
                               );
                             },
-                            icon: const Icon(Icons.print, size: 18),
+                            icon: const Icon(Icons.print_outlined, size: 18),
                             label: const Text('Imprimir Todas'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
@@ -1122,7 +1122,7 @@ class FacturaPage extends ConsumerWidget {
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.print, color: AppColors.primary, size: 24),
+                    child: const Icon(Icons.print_outlined, color: AppColors.primary, size: 24),
                   ),
                   const SizedBox(width: 12),
                   const Text('Seleccionar Impresora'),
@@ -1142,7 +1142,7 @@ class FacturaPage extends ConsumerWidget {
                           color: AppColors.primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.print, color: AppColors.primary, size: 20),
+                        child: const Icon(Icons.print_outlined, color: AppColors.primary, size: 20),
                       ),
                       title: Text(
                         impresora.platformName.isNotEmpty ? impresora.platformName : 'Impresora ${index + 1}',
@@ -1353,13 +1353,43 @@ class FacturaPage extends ConsumerWidget {
     );
   }
 
+  void _toggleSeleccionFactura(WidgetRef ref, String facturaId) {
+    final seleccionadas = ref.read(facturasSeleccionadasProvider);
+    final nuevasSeleccionadas = Set<String>.from(seleccionadas);
+
+    if (nuevasSeleccionadas.contains(facturaId)) {
+      nuevasSeleccionadas.remove(facturaId);
+    } else {
+      nuevasSeleccionadas.add(facturaId);
+    }
+
+    ref.read(facturasSeleccionadasProvider.notifier).state = nuevasSeleccionadas;
+
+    // Si no hay seleccionadas, salir del modo selección
+    if (nuevasSeleccionadas.isEmpty) {
+      ref.read(modoSeleccionProvider.notifier).state = false;
+    }
+  }
+
+  void _cancelarSeleccion(WidgetRef ref) {
+    ref.read(modoSeleccionProvider.notifier).state = false;
+    ref.read(facturasSeleccionadasProvider.notifier).state = {};
+  }
+
+  void _seleccionarTodas(WidgetRef ref, List<FacturaModel> facturas) {
+    final todosLosIds = facturas.map((f) => f.id!).toSet();
+    ref.read(facturasSeleccionadasProvider.notifier).state = todosLosIds;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final facturasAsync = ref.watch(facturasStateProvider);
-    final facturasFiltradas = ref.watch(facturasFiltradasConBusquedaProvider); // CAMBIAR ESTA LÍNEA
+    final facturasFiltradas = ref.watch(facturasFiltradasConBusquedaProvider);
     final fechaState = ref.watch(fechaProvider);
     final isSearching = ref.watch(isSearchingFacturasProvider);
     final searchQuery = ref.watch(searchQueryFacturasProvider);
+    final modoSeleccion = ref.watch(modoSeleccionProvider); // AGREGAR
+    final facturasSeleccionadas = ref.watch(facturasSeleccionadasProvider); // AGREGAR
 
     final totalDia = facturasFiltradas.fold(0.0, (sum, factura) {
       return sum + factura.items.fold(0.0, (itemSum, item) => itemSum + item.subtotal);
@@ -1372,7 +1402,22 @@ class FacturaPage extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 1,
         titleSpacing: 16,
-        title: isSearching
+        leading: modoSeleccion
+            ? IconButton(
+          icon: const Icon(Icons.close, color: AppColors.textPrimary),
+          onPressed: () => _cancelarSeleccion(ref),
+        )
+            : null,
+        title: modoSeleccion
+            ? Text(
+          '${facturasSeleccionadas.length} seleccionada${facturasSeleccionadas.length != 1 ? 's' : ''}',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        )
+            : (isSearching
             ? TextField(
           autofocus: true,
           decoration: const InputDecoration(
@@ -1385,9 +1430,28 @@ class FacturaPage extends ConsumerWidget {
             ref.read(searchQueryFacturasProvider.notifier).state = value;
           },
         )
-            : _buildDateSelector(context, ref, fechaState),
+            : _buildDateSelector(context, ref, fechaState)),
         actions: [
-          if (isSearching)
+          if (modoSeleccion) ...[
+            if (facturasSeleccionadas.length < facturasFiltradas.length)
+              IconButton(
+                icon: const Icon(Icons.select_all, color: AppColors.primary),
+                onPressed: () => _seleccionarTodas(ref, facturasFiltradas),
+                tooltip: 'Seleccionar todas',
+              ),
+            IconButton(
+              icon: const Icon(Icons.print_outlined, color: AppColors.primary),
+              onPressed: facturasSeleccionadas.isEmpty
+                  ? null
+                  : () {
+                final seleccionadas = facturasFiltradas
+                    .where((f) => facturasSeleccionadas.contains(f.id))
+                    .toList();
+                _mostrarMenuImprimirTodas(context, ref, seleccionadas, fechaState.fechaSeleccionada);
+              },
+              tooltip: 'Imprimir seleccionadas',
+            ),
+          ] else if (isSearching)
             IconButton(
               icon: const Icon(Icons.close, color: AppColors.textPrimary),
               onPressed: () {
@@ -1397,50 +1461,50 @@ class FacturaPage extends ConsumerWidget {
               tooltip: 'Cerrar búsqueda',
             )
           else ...[
-            IconButton(
-              icon: const Icon(Icons.search, color: AppColors.primary),
-              onPressed: () {
-                ref.read(isSearchingFacturasProvider.notifier).state = true;
-              },
-              tooltip: 'Buscar facturas',
-            ),
-            IconButton(
-              icon: const Icon(Icons.print_outlined, color: AppColors.primary),
-              onPressed: () {
-                if (facturasFiltradas.isEmpty) {
-                  _mostrarSnackBar(context, 'No hay facturas para imprimir', isError: true);
-                } else {
-                  _mostrarMenuImprimirTodas(context, ref, facturasFiltradas, fechaState.fechaSeleccionada);
-                }
-              },
-              tooltip: 'Imprimir todas las facturas',
-            ),
-            IconButton(
-              icon: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ResumenProductosDiaPage(
-                      facturas: facturasFiltradas,
-                      fecha: fechaState.fechaSeleccionada,
+              IconButton(
+                icon: const Icon(Icons.search, color: AppColors.primary),
+                onPressed: () {
+                  ref.read(isSearchingFacturasProvider.notifier).state = true;
+                },
+                tooltip: 'Buscar facturas',
+              ),
+              IconButton(
+                icon: const Icon(Icons.print_outlined, color: AppColors.primary),
+                onPressed: () {
+                  if (facturasFiltradas.isEmpty) {
+                    _mostrarSnackBar(context, 'No hay facturas para imprimir', isError: true);
+                  } else {
+                    _mostrarMenuImprimirTodas(context, ref, facturasFiltradas, fechaState.fechaSeleccionada);
+                  }
+                },
+                tooltip: 'Imprimir todas las facturas',
+              ),
+              IconButton(
+                icon: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ResumenProductosDiaPage(
+                        facturas: facturasFiltradas,
+                        fecha: fechaState.fechaSeleccionada,
+                      ),
                     ),
-                  ),
-                );
-              },
-              tooltip: 'Ver resumen de productos',
-            ),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CrearFacturaMobile()),
-                );
-              },
-              tooltip: 'Nueva factura',
-            ),
-          ],
+                  );
+                },
+                tooltip: 'Ver resumen de productos',
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const CrearFacturaMobile()),
+                  );
+                },
+                tooltip: 'Nueva factura',
+              ),
+            ],
         ],
       ),
       body: Column(
@@ -1507,6 +1571,8 @@ class FacturaPage extends ConsumerWidget {
               ],
             ),
           ),
+
+
 
           // Lista de facturas
           Expanded(
@@ -1596,23 +1662,72 @@ class FacturaPage extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final factura = facturasFiltradas[index];
                     final total = factura.items.fold(0.0, (sum, item) => sum + item.subtotal);
+                    final estaSeleccionada = facturasSeleccionadas.contains(factura.id);
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       child: Material(
-                        color: AppColors.surface,
+                        color: estaSeleccionada
+                            ? AppColors.primary.withOpacity(0.1)
+                            : AppColors.surface,
                         borderRadius: BorderRadius.circular(16),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(16),
-                          onTap: () => _mostrarOpcionesFactura(context, ref, factura),
+                          onTap: () {
+                            if (modoSeleccion) {
+                              _toggleSeleccionFactura(ref, factura.id!);
+                            } else {
+                              _mostrarOpcionesFactura(context, ref, factura);
+                            }
+                          },
+                          onLongPress: () {
+                            if (!modoSeleccion) {
+                              ref.read(modoSeleccionProvider.notifier).state = true;
+                              _toggleSeleccionFactura(ref, factura.id!);
+                            }
+                          },
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.border),
+                              border: Border.all(
+                                color: estaSeleccionada
+                                    ? AppColors.primary
+                                    : AppColors.border,
+                                width: estaSeleccionada ? 2 : 1,
+                              ),
                             ),
                             child: Row(
                               children: [
+                                // CHECKBOX EN MODO SELECCIÓN
+                                if (modoSeleccion)
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 12),
+                                    child: Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        color: estaSeleccionada
+                                            ? AppColors.primary
+                                            : Colors.transparent,
+                                        border: Border.all(
+                                          color: estaSeleccionada
+                                              ? AppColors.primary
+                                              : AppColors.border,
+                                          width: 2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: estaSeleccionada
+                                          ? const Icon(
+                                        Icons.check,
+                                        size: 16,
+                                        color: Colors.white,
+                                      )
+                                          : null,
+                                    ),
+                                  ),
+
                                 Container(
                                   width: 48,
                                   height: 48,
