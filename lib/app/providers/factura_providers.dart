@@ -96,3 +96,37 @@ final facturasFiltradasProvider = Provider<List<FacturaModel>>((ref) {
     orElse: () => [],
   );
 });
+
+// Provider para controlar si está buscando
+final isSearchingFacturasProvider = StateProvider<bool>((ref) => false);
+
+// Provider para el término de búsqueda
+final searchQueryFacturasProvider = StateProvider<String>((ref) => '');
+
+// Provider para facturas filtradas por fecha Y búsqueda
+final facturasFiltradasConBusquedaProvider = Provider<List<FacturaModel>>((ref) {
+  final facturas = ref.watch(facturasStateProvider).value ?? [];
+  final fechaState = ref.watch(fechaProvider);
+  final searchQuery = ref.watch(searchQueryFacturasProvider).toLowerCase();
+
+  return facturas.where((factura) {
+    // Filtrar por fecha
+    final mismoDia = factura.fecha.year == fechaState.fechaSeleccionada.year &&
+        factura.fecha.month == fechaState.fechaSeleccionada.month &&
+        factura.fecha.day == fechaState.fechaSeleccionada.day;
+
+    if (!mismoDia) return false;
+
+    // Si no hay búsqueda, mostrar todos
+    if (searchQuery.isEmpty) return true;
+
+    // Filtrar por búsqueda
+    final nombreCliente = factura.nombreCliente.toLowerCase();
+    final negocio = (factura.negocioCliente ?? '').toLowerCase();
+    final direccion = factura.direccionCliente.toLowerCase();
+
+    return nombreCliente.contains(searchQuery) ||
+        negocio.contains(searchQuery) ||
+        direccion.contains(searchQuery);
+  }).toList();
+});

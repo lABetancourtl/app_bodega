@@ -1356,8 +1356,10 @@ class FacturaPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final facturasAsync = ref.watch(facturasStateProvider);
-    final facturasFiltradas = ref.watch(facturasFiltradasProvider);
+    final facturasFiltradas = ref.watch(facturasFiltradasConBusquedaProvider); // CAMBIAR ESTA LÍNEA
     final fechaState = ref.watch(fechaProvider);
+    final isSearching = ref.watch(isSearchingFacturasProvider);
+    final searchQuery = ref.watch(searchQueryFacturasProvider);
 
     final totalDia = facturasFiltradas.fold(0.0, (sum, factura) {
       return sum + factura.items.fold(0.0, (itemSum, item) => itemSum + item.subtotal);
@@ -1370,55 +1372,75 @@ class FacturaPage extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 1,
         titleSpacing: 16,
-        title: _buildDateSelector(context, ref, fechaState),
+        title: isSearching
+            ? TextField(
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Buscar por nombre, negocio o dirección...',
+            hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+            border: InputBorder.none,
+          ),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+          onChanged: (value) {
+            ref.read(searchQueryFacturasProvider.notifier).state = value;
+          },
+        )
+            : _buildDateSelector(context, ref, fechaState),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: AppColors.primary),
-            onPressed: () {
-              if (facturasFiltradas.isEmpty) {
-                _mostrarSnackBar(context, 'No hay facturas para imprimir', isError: true);
-              } else {
-                _mostrarMenuImprimirTodas(context, ref, facturasFiltradas, fechaState.fechaSeleccionada);
-              }
-            },
-            tooltip: 'Imprimir todas las facturas',
-          ),
-          IconButton(
-            icon: const Icon(Icons.print_outlined, color: AppColors.primary),
-            onPressed: () {
-              if (facturasFiltradas.isEmpty) {
-                _mostrarSnackBar(context, 'No hay facturas para imprimir', isError: true);
-              } else {
-                _mostrarMenuImprimirTodas(context, ref, facturasFiltradas, fechaState.fechaSeleccionada);
-              }
-            },
-            tooltip: 'Imprimir todas las facturas',
-          ),
-          IconButton(
-            icon: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ResumenProductosDiaPage(
-                    facturas: facturasFiltradas,
-                    fecha: fechaState.fechaSeleccionada,
+          if (isSearching)
+            IconButton(
+              icon: const Icon(Icons.close, color: AppColors.textPrimary),
+              onPressed: () {
+                ref.read(isSearchingFacturasProvider.notifier).state = false;
+                ref.read(searchQueryFacturasProvider.notifier).state = '';
+              },
+              tooltip: 'Cerrar búsqueda',
+            )
+          else ...[
+            IconButton(
+              icon: const Icon(Icons.search, color: AppColors.primary),
+              onPressed: () {
+                ref.read(isSearchingFacturasProvider.notifier).state = true;
+              },
+              tooltip: 'Buscar facturas',
+            ),
+            IconButton(
+              icon: const Icon(Icons.print_outlined, color: AppColors.primary),
+              onPressed: () {
+                if (facturasFiltradas.isEmpty) {
+                  _mostrarSnackBar(context, 'No hay facturas para imprimir', isError: true);
+                } else {
+                  _mostrarMenuImprimirTodas(context, ref, facturasFiltradas, fechaState.fechaSeleccionada);
+                }
+              },
+              tooltip: 'Imprimir todas las facturas',
+            ),
+            IconButton(
+              icon: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ResumenProductosDiaPage(
+                      facturas: facturasFiltradas,
+                      fecha: fechaState.fechaSeleccionada,
+                    ),
                   ),
-                ),
-              );
-            },
-            tooltip: 'Ver resumen de productos',
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const CrearFacturaMobile()),
-              );
-            },
-            tooltip: 'Nueva factura',
-          ),
+                );
+              },
+              tooltip: 'Ver resumen de productos',
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CrearFacturaMobile()),
+                );
+              },
+              tooltip: 'Nueva factura',
+            ),
+          ],
         ],
       ),
       body: Column(
@@ -1526,35 +1548,43 @@ class FacturaPage extends ConsumerWidget {
                             color: AppColors.primary.withOpacity(0.05),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(Icons.receipt_long, size: 64, color: AppColors.primary.withOpacity(0.3)),
+                          child: Icon(
+                            searchQuery.isNotEmpty ? Icons.search_off : Icons.receipt_long,
+                            size: 64,
+                            color: AppColors.primary.withOpacity(0.3),
+                          ),
                         ),
                         const SizedBox(height: 24),
-                        const Text(
-                          'Sin facturas',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        Text(
+                          searchQuery.isNotEmpty ? 'Sin resultados' : 'Sin facturas',
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'No hay facturas para esta fecha',
-                          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                        Text(
+                          searchQuery.isNotEmpty
+                              ? 'No se encontraron facturas con "$searchQuery"'
+                              : 'No hay facturas para esta fecha',
+                          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                          textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        if (searchQuery.isEmpty)
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const CrearFacturaMobile()),
+                              );
+                            },
+                            icon: const Icon(Icons.add, size: 20),
+                            label: const Text('Nueva Factura'),
                           ),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const CrearFacturaMobile()),
-                            );
-                          },
-                          icon: const Icon(Icons.add, size: 20),
-                          label: const Text('Nueva Factura'),
-                        ),
                       ],
                     ),
                   );

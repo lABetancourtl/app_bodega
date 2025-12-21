@@ -49,6 +49,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
   final Map<int, ScrollController> _scrollControllers = {};
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
+  bool _vistaGrid = false;
 
   @override
   void initState() {
@@ -1140,7 +1141,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
 
         if (productoResaltado != null && productoIndexScroll != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            const double itemHeight = 88.0;
+            final double itemHeight = _vistaGrid ? 260.0 : 88.0;
             final double scrollPosition = productoIndexScroll * itemHeight;
 
             if (scrollController.hasClients) {
@@ -1167,6 +1168,161 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
           );
         }
 
+        // ========== VISTA CARDS (CATÁLOGO) ==========
+        if (_vistaGrid) {
+          return GridView.builder(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.65,
+            ),
+            itemCount: productosFiltrados.length,
+            itemBuilder: (context, index) {
+              final producto = productosFiltrados[index];
+              final estaResaltado = productoResaltado == producto.id;
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => _mostrarOpcionesProducto(context, producto, categorias),
+                    onLongPress: () => _verImagenProducto(context, producto),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: estaResaltado ? AppColors.accentLight : AppColors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: estaResaltado ? AppColors.accent : AppColors.border,
+                          width: estaResaltado ? 2 : 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: estaResaltado
+                                ? AppColors.accent.withOpacity(0.2)
+                                : Colors.black.withOpacity(0.05),
+                            blurRadius: estaResaltado ? 8 : 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Imagen del producto
+                          ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                            ),
+                            child: AspectRatio(
+                              aspectRatio: 1,
+                              child: _construirImagenProductoCard(producto.imagenPath),
+                            ),
+                          ),
+
+                          // Información del producto
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  // Nombre y sabores
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        producto.nombre,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.textPrimary,
+                                          height: 1.2,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (producto.sabores.isNotEmpty) ...[
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          producto.sabores.join(' • '),
+                                          style: const TextStyle(
+                                            fontSize: 9,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+
+                                  // Precio y cantidad
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accent.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          '\$${_formatearPrecio(producto.precio)}',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.accent,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                      if (producto.cantidadPorPaca != null) ...[
+                                        const SizedBox(height: 3),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(
+                                              Icons.inventory_2_outlined,
+                                              size: 9,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                            const SizedBox(width: 3),
+                                            Text(
+                                              '${producto.cantidadPorPaca} x paca',
+                                              style: const TextStyle(
+                                                fontSize: 9,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        }
+
+        // ========== VISTA LISTA (PREVENTA - POR DEFECTO) ==========
         return ListView.builder(
           controller: scrollController,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -1264,6 +1420,115 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
       },
     );
   }
+
+  Widget _construirImagenProductoCard(String? imagenPath) {
+    if (imagenPath != null && imagenPath.isNotEmpty) {
+      if (imagenPath.startsWith('http')) {
+        return CachedNetworkImage(
+          imageUrl: imagenPath,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => Container(
+            color: AppColors.border,
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+          errorWidget: (context, url, error) => _imagenPorDefectoCard(),
+          memCacheWidth: 400,
+          memCacheHeight: 400,
+        );
+      } else {
+        final file = File(imagenPath);
+        if (file.existsSync()) {
+          return Image.file(
+            file,
+            fit: BoxFit.cover,
+          );
+        }
+      }
+    }
+    return _imagenPorDefectoCard();
+  }
+
+  Widget _imagenPorDefectoCard() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withOpacity(0.1),
+            AppColors.accent.withOpacity(0.1)
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.inventory_2_outlined,
+          size: 50,
+          color: AppColors.primary.withOpacity(0.4),
+        ),
+      ),
+    );
+  }
+
+// // Nuevo método específico para imágenes en cards
+//   Widget _construirImagenProductoCard(String? imagenPath) {
+//     if (imagenPath != null && imagenPath.isNotEmpty) {
+//       if (imagenPath.startsWith('http')) {
+//         return CachedNetworkImage(
+//           imageUrl: imagenPath,
+//           fit: BoxFit.cover,
+//           placeholder: (context, url) => Container(
+//             color: AppColors.border,
+//             child: const Center(
+//               child: CircularProgressIndicator(
+//                 strokeWidth: 2,
+//                 color: AppColors.primary,
+//               ),
+//             ),
+//           ),
+//           errorWidget: (context, url, error) => _imagenPorDefectoCard(),
+//           memCacheWidth: 400,
+//           memCacheHeight: 400,
+//         );
+//       } else {
+//         final file = File(imagenPath);
+//         if (file.existsSync()) {
+//           return Image.file(
+//             file,
+//             fit: BoxFit.cover,
+//           );
+//         }
+//       }
+//     }
+//     return _imagenPorDefectoCard();
+//   }
+//
+//   Widget _imagenPorDefectoCard() {
+//     return Container(
+//       decoration: BoxDecoration(
+//         gradient: LinearGradient(
+//           begin: Alignment.topLeft,
+//           end: Alignment.bottomRight,
+//           colors: [
+//             AppColors.primary.withOpacity(0.1),
+//             AppColors.accent.withOpacity(0.1)
+//           ],
+//         ),
+//       ),
+//       child: Center(
+//         child: Icon(
+//           Icons.inventory_2_outlined,
+//           size: 50,
+//           color: AppColors.primary.withOpacity(0.4),
+//         ),
+//       ),
+//     );
+//   }
 
   // Widget para el selector de categoría en el header
   Widget _buildCategorySelector(List<CategoriaModel> categorias) {
@@ -1515,6 +1780,18 @@ class _ProductosPageState extends ConsumerState<ProductosPage> with TickerProvid
                   onPressed: () {
                     setState(() {
                       _isSearching = true;
+                    });
+                  },
+                ),
+                IconButton(
+                  icon: Icon(
+                    _vistaGrid ? Icons.view_list : Icons.grid_view,
+                    color: AppColors.primary,
+                  ),
+                  tooltip: _vistaGrid ? 'Vista rápida' : 'Vista catálogo',
+                  onPressed: () {
+                    setState(() {
+                      _vistaGrid = !_vistaGrid;
                     });
                   },
                 ),
