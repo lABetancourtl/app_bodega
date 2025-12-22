@@ -26,6 +26,7 @@ class CrearFacturaMobile extends ConsumerStatefulWidget {
 
 class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
+  DescuentoModel? descuentoGlobal;
 
   ClienteModel? clienteSeleccionado;
   List<ItemFacturaModel> items = [];
@@ -433,7 +434,34 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
 
     if (resultado != null) {
       setState(() {
-        if (resultado is List<ItemFacturaModel>) {
+        // ← NUEVO: Manejar el resultado que ahora es un Map
+        if (resultado is Map<String, dynamic>) {
+          final itemsRecibidos = resultado['items'] as List<ItemFacturaModel>;
+          final descuentoGlobalRecibido = resultado['descuentoGlobal'] as DescuentoModel?;
+
+          // Guardar el descuento global
+          descuentoGlobal = descuentoGlobalRecibido;
+
+          // Procesar items
+          for (var nuevoItem in itemsRecibidos) {
+            final indexExistente = items.indexWhere(
+                  (item) => item.productoId == nuevoItem.productoId,
+            );
+
+            if (indexExistente != -1) {
+              items[indexExistente] = nuevoItem;
+            } else {
+              items.add(nuevoItem);
+            }
+          }
+
+          _mostrarSnackBar(
+            '${itemsRecibidos.length} ${itemsRecibidos.length == 1 ? "producto procesado" : "productos procesados"}',
+            isSuccess: true,
+          );
+        }
+        // ← MANTENER compatibilidad con formato antiguo (por si acaso)
+        else if (resultado is List<ItemFacturaModel>) {
           for (var nuevoItem in resultado) {
             final indexExistente = items.indexWhere(
                   (item) => item.productoId == nuevoItem.productoId,
@@ -522,9 +550,7 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
       return;
     }
 
-    // Calcular el total
-    double totalCalculado = items.fold(0, (sum, item) => sum + item.subtotal);
-
+    // ← CREAR LA FACTURA CON EL DESCUENTO GLOBAL
     final factura = FacturaModel(
       clienteId: esFacturaLimpia ? '' : (clienteSeleccionado!.id ?? ''),
       nombreCliente: clienteSeleccionado!.nombre,
@@ -535,6 +561,7 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
       fecha: DateTime.now(),
       items: items,
       estado: 'preventa',
+      descuentoGlobal: descuentoGlobal, // ← AGREGAR ESTA LÍNEA
     );
 
     try {
@@ -867,6 +894,10 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
   Widget build(BuildContext context) {
     double total = items.fold(0, (sum, item) => sum + item.subtotal);
 
+    if (descuentoGlobal != null && descuentoGlobal!.tieneDescuento) {
+      total = descuentoGlobal!.aplicarDescuento(total);
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -1126,6 +1157,8 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
             ),
           ),
 
+          _buildResumenDescuentos(),
+
           // Total
           Container(
             width: double.infinity,
@@ -1174,6 +1207,102 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResumenDescuentos() {
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    double subtotalSinDescuentos = items.fold(0, (sum, item) => sum + item.subtotalSinDescuento);
+    double subtotalConDescuentosItems = items.fold(0, (sum, item) => sum + item.subtotal);
+
+    // Calcular descuento de items
+    double descuentoItems = subtotalSinDescuentos - subtotalConDescuentosItems;
+
+    // Calcular descuento global
+    double montoDescuentoGlobal = 0;
+    if (descuentoGlobal != null && descuentoGlobal!.tieneDescuento) {
+      montoDescuentoGlobal = descuentoGlobal!.calcularDescuento(subtotalConDescuentosItems);
+    }
+
+    double totalDescuentos = descuentoItems + montoDescuentoGlobal;
+
+    // Solo mostrar si hay descuentos
+    if (totalDescuentos <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.success.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.success.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.local_offer, color: AppColors.success, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Descuentos aplicados:',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '\$${_formatearPrecio(totalDescuentos)}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.success,
+                ),
+              ),
+            ],
+          ),
+          if (descuentoItems > 0) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const SizedBox(width: 26),
+                const Text(
+                  '• Descuentos por producto',
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+                const Spacer(),
+                Text(
+                  '\$${_formatearPrecio(descuentoItems)}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ],
+          if (descuentoGlobal != null && descuentoGlobal!.tieneDescuento) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const SizedBox(width: 26),
+                Text(
+                  '• Descuento global (${descuentoGlobal!.toString()})',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+                const Spacer(),
+                Text(
+                  '\$${_formatearPrecio(montoDescuentoGlobal)}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

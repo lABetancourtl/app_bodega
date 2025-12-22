@@ -342,6 +342,7 @@ class DatabaseHelper {
         'estado': factura.estado,
         'total': factura.total,
         'items': factura.items.map((item) => item.toMap()).toList(),
+        'descuentoGlobal': factura.descuentoGlobal?.toMap(),
       };
 
       final docRef = await _firestore
@@ -432,6 +433,7 @@ class DatabaseHelper {
         'estado': factura.estado,
         'total': factura.total,
         'items': factura.items.map((item) => item.toMap()).toList(),
+        'descuentoGlobal': factura.descuentoGlobal?.toMap(),
       });
     } catch (e) {
       throw Exception('Error al actualizar factura: $e');
