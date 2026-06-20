@@ -11,6 +11,9 @@ import 'package:app_bodega/app/theme/app_colors.dart';
 // Provider para el descuento global
 final descuentoGlobalProvider = StateProvider<DescuentoModel?>((ref) => null);
 
+// Provider para el ítem expandido en el carrito
+final carritoItemExpandidoProvider = StateProvider<int?>((ref) => null);
+
 class CarritoProductosPage extends ConsumerWidget {
   const CarritoProductosPage({super.key});
 
@@ -41,298 +44,6 @@ class CarritoProductosPage extends ConsumerWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(milliseconds: 2000),
-      ),
-    );
-  }
-
-  Future<void> _editarProducto(
-      BuildContext context,
-      WidgetRef ref,
-      int index,
-      ItemFacturaModel itemActual,
-      ) async {
-    final dbHelper = DatabaseHelper();
-    final producto = await dbHelper.obtenerProductoPorId(itemActual.productoId);
-
-    if (producto == null) {
-      if (context.mounted) {
-        _mostrarSnackBar(context, 'No se encontró el producto', isError: true);
-      }
-      return;
-    }
-
-    if (!context.mounted) return;
-
-    final itemEditado = await _mostrarDialogoEdicion(context, producto, itemActual);
-
-    if (itemEditado != null) {
-      final carritoProvider = ref.read(carritoTemporalProvider.notifier);
-      final carritoActual = ref.read(carritoTemporalProvider);
-      final nuevoCarrito = List<ItemFacturaModel>.from(carritoActual);
-      nuevoCarrito[index] = itemEditado;
-      carritoProvider.state = nuevoCarrito;
-
-      if (context.mounted) {
-        _mostrarSnackBar(context, 'Producto actualizado', isSuccess: true);
-      }
-    }
-  }
-
-  Future<ItemFacturaModel?> _mostrarDialogoEdicion(
-      BuildContext context,
-      ProductoModel producto,
-      ItemFacturaModel itemActual,
-      ) async {
-    final TextEditingController cantidadTotalController =
-    TextEditingController(text: itemActual.cantidadTotal.toString());
-    final Map<String, TextEditingController> controllersPorSabor = {};
-    final Map<String, int> cantidadPorSabor = Map.from(itemActual.cantidadPorSabor);
-
-    for (var sabor in producto.sabores) {
-      final cantidad = cantidadPorSabor[sabor] ?? 0;
-      controllersPorSabor[sabor] = TextEditingController(text: cantidad.toString());
-    }
-
-    int calcularTotal() {
-      return cantidadPorSabor.values.fold(0, (sum, qty) => sum + qty);
-    }
-
-    return await showModalBottomSheet<ItemFacturaModel>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  // Header
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.edit, color: AppColors.primary, size: 24),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                producto.nombre,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              Text(
-                                '\$${_formatearPrecio(producto.precio)} c/u',
-                                style: const TextStyle(fontSize: 14, color: AppColors.accent),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  // Content
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (producto.sabores.length == 1) ...[
-                          TextField(
-                            controller: cantidadTotalController,
-                            keyboardType: TextInputType.number,
-                            autofocus: true,
-                            decoration: InputDecoration(
-                              labelText: 'Cantidad',
-                              labelStyle: const TextStyle(color: AppColors.textSecondary),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                              ),
-                              prefixIcon: const Icon(Icons.inventory, color: AppColors.primary),
-                            ),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        if (producto.sabores.length > 1) ...[
-                          const Text(
-                            'Distribuir por sabor:',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
-                          ),
-                          const SizedBox(height: 16),
-                          ...producto.sabores.map((sabor) {
-                            final controller = controllersPorSabor[sabor]!;
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(sabor, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary)),
-                                  ),
-                                  SizedBox(
-                                    width: 80,
-                                    child: TextField(
-                                      controller: controller,
-                                      keyboardType: TextInputType.number,
-                                      textAlign: TextAlign.center,
-                                      decoration: InputDecoration(
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                                        ),
-                                        isDense: true,
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                                      ),
-                                      onTap: () {
-                                        if (controller.text == '0') controller.clear();
-                                      },
-                                      onChanged: (value) {
-                                        cantidadPorSabor[sabor] = int.tryParse(value) ?? 0;
-                                        setState(() {});
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          const Divider(height: 24),
-                        ],
-                        // Total box
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.accentLight,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.accent.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    producto.sabores.length == 1
-                                        ? '${int.tryParse(cantidadTotalController.text) ?? 0} unidades'
-                                        : '${calcularTotal()} unidades',
-                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                                  ),
-                                  const Text('TOTAL:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                                ],
-                              ),
-                              Text(
-                                producto.sabores.length == 1
-                                    ? '\$${_formatearPrecio((int.tryParse(cantidadTotalController.text) ?? 0) * producto.precio)}'
-                                    : '\$${_formatearPrecio(calcularTotal() * producto.precio)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: AppColors.accent),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Actions
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: const BorderSide(color: AppColors.border),
-                              ),
-                            ),
-                            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              int cantidadTotal;
-                              if (producto.sabores.length == 1) {
-                                cantidadTotal = int.tryParse(cantidadTotalController.text) ?? 0;
-                                if (cantidadTotal <= 0) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('La cantidad debe ser mayor a 0')),
-                                  );
-                                  return;
-                                }
-                              } else {
-                                cantidadTotal = calcularTotal();
-                                if (cantidadTotal <= 0) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Debes agregar al menos una unidad')),
-                                  );
-                                  return;
-                                }
-                              }
-                              final itemActualizado = ItemFacturaModel(
-                                productoId: producto.id!,
-                                nombreProducto: producto.nombre,
-                                precioUnitario: producto.precio,
-                                cantidadTotal: cantidadTotal,
-                                cantidadPorSabor: producto.sabores.length > 1 ? cantidadPorSabor : {producto.sabores[0]: cantidadTotal},
-                                tieneSabores: producto.sabores.length > 1,
-                                descuento: itemActual.descuento, // Mantener el descuento
-                              );
-                              Navigator.pop(context, itemActualizado);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: const Text('Guardar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
       ),
     );
   }
@@ -518,66 +229,6 @@ class CarritoProductosPage extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Widget _construirImagenProducto(String? imagenPath) {
-    if (imagenPath != null && imagenPath.isNotEmpty && imagenPath.startsWith('http')) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          imagenPath,
-          fit: BoxFit.cover,
-          width: 56,
-          height: 56,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return _imagenPlaceholder();
-          },
-          errorBuilder: (context, error, stackTrace) => _imagenPorDefecto(),
-        ),
-      );
-    }
-    return _imagenPorDefecto();
-  }
-
-  Widget _imagenPlaceholder() {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        color: AppColors.border,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Center(
-        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
-      ),
-    );
-  }
-
-  Widget _imagenPorDefecto() {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary.withOpacity(0.1), AppColors.accent.withOpacity(0.1)],
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Icon(Icons.inventory_2_outlined, size: 24, color: AppColors.primary),
-    );
-  }
-
-  Future<String?> _obtenerImagenProducto(String productoId) async {
-    try {
-      final dbHelper = DatabaseHelper();
-      final producto = await dbHelper.obtenerProductoPorId(productoId);
-      return producto?.imagenPath;
-    } catch (e) {
-      return null;
-    }
   }
 
   double _calcularTotalConDescuentos(List<ItemFacturaModel> carrito, DescuentoModel? descuentoGlobal) {
@@ -788,171 +439,12 @@ class CarritoProductosPage extends ConsumerWidget {
               itemCount: carrito.length,
               itemBuilder: (context, index) {
                 final item = carrito[index];
-                final tieneDescuento = item.descuento != null && item.descuento!.tieneDescuento;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: tieneDescuento ? AppColors.success.withOpacity(0.5) : AppColors.border,
-                      width: tieneDescuento ? 2 : 1,
-                    ),
-                  ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => _editarProducto(context, ref, index, item),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              FutureBuilder<String?>(
-                                future: _obtenerImagenProducto(item.productoId),
-                                builder: (context, snapshot) {
-                                  return _construirImagenProducto(snapshot.data);
-                                },
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.nombreProducto,
-                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textPrimary),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    if (item.tieneSabores)
-                                      Text(
-                                        item.cantidadPorSabor.entries.map((e) => '${e.key} (${e.value})').join(', '),
-                                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          margin: const EdgeInsets.only(top: 4),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.primary,
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            '${item.cantidadTotal} uds',
-                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        if (tieneDescuento) ...[
-                                          Container(
-                                            margin: const EdgeInsets.only(top: 4),
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.textSecondary.withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              '\$${_formatearPrecio(item.subtotalSinDescuento)}',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: AppColors.textSecondary,
-                                                decoration: TextDecoration.lineThrough,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                        ],
-                                        Container(
-                                          margin: const EdgeInsets.only(top: 4),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.accentLight,
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            '\$${_formatearPrecio(item.subtotal)}',
-                                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Column(
-                                children: [
-                                  IconButton(
-                                    icon: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: tieneDescuento
-                                            ? AppColors.success.withOpacity(0.1)
-                                            : AppColors.primary.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        tieneDescuento ? Icons.discount : Icons.local_offer_outlined,
-                                        color: tieneDescuento ? AppColors.success : AppColors.primary,
-                                        size: 18,
-                                      ),
-                                    ),
-                                    onPressed: () => _aplicarDescuentoProducto(context, ref, index, item),
-                                    tooltip: 'Descuento',
-                                  ),
-                                  IconButton(
-                                    icon: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.error.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Icon(Icons.delete_outline, color: AppColors.error, size: 18),
-                                    ),
-                                    onPressed: () => _eliminarProducto(context, ref, index, item.nombreProducto),
-                                    tooltip: 'Eliminar',
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-
-                          // Badge de descuento si existe
-                          if (tieneDescuento)
-                            Container(
-                              margin: const EdgeInsets.only(top: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: AppColors.success.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.success.withOpacity(0.3)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.local_offer, color: AppColors.success, size: 14),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Descuento ${item.descuento!.toString()}${item.descuento!.motivo != null ? " - ${item.descuento!.motivo}" : ""}',
-                                    style: const TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.w600),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    'Ahorras \$${_formatearPrecio(item.montoDescuento)}',
-                                    style: const TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
+                return _CarritoItemCard(
+                  key: ValueKey(item.productoId),
+                  item: item,
+                  index: index,
+                  onEliminar: () => _eliminarProducto(context, ref, index, item.nombreProducto),
+                  onDescuento: () => _aplicarDescuentoProducto(context, ref, index, item),
                 );
               },
             ),
@@ -988,6 +480,358 @@ class CarritoProductosPage extends ConsumerWidget {
         ),
       )
           : null,
+    );
+  }
+}
+
+// ============= WIDGET DE ÍTEM DEL CARRITO CON ACORDEÓN =============
+class _CarritoItemCard extends ConsumerStatefulWidget {
+  final ItemFacturaModel item;
+  final int index;
+  final VoidCallback onEliminar;
+  final VoidCallback onDescuento;
+
+  const _CarritoItemCard({
+    required super.key,
+    required this.item,
+    required this.index,
+    required this.onEliminar,
+    required this.onDescuento,
+  });
+
+  @override
+  ConsumerState<_CarritoItemCard> createState() => _CarritoItemCardState();
+}
+
+class _CarritoItemCardState extends ConsumerState<_CarritoItemCard> {
+  late Map<String, int> _cantidades;
+  String? _imagenPath;
+
+  ItemFacturaModel get item => widget.item;
+
+  @override
+  void initState() {
+    super.initState();
+    _cantidades = Map<String, int>.from(item.cantidadPorSabor);
+    _cargarImagen();
+  }
+
+  Future<void> _cargarImagen() async {
+    try {
+      final producto = await DatabaseHelper().obtenerProductoPorId(item.productoId);
+      if (mounted) setState(() => _imagenPath = producto?.imagenPath);
+    } catch (_) {}
+  }
+
+  int get _total => _cantidades.values.fold(0, (a, b) => a + b);
+
+  void _cambiar(String sabor, int delta) {
+    setState(() {
+      final nuevo = (_cantidades[sabor] ?? 0) + delta;
+      _cantidades[sabor] = nuevo < 0 ? 0 : nuevo;
+    });
+    _sincronizarCarrito();
+  }
+
+  void _sincronizarCarrito() {
+    final itemActualizado = ItemFacturaModel(
+      productoId: item.productoId,
+      nombreProducto: item.nombreProducto,
+      precioUnitario: item.precioUnitario,
+      cantidadTotal: _total,
+      cantidadPorSabor: Map<String, int>.from(_cantidades),
+      tieneSabores: item.tieneSabores,
+      descuento: item.descuento,
+    );
+    final carritoActual = ref.read(carritoTemporalProvider);
+    final nuevoCarrito = List<ItemFacturaModel>.from(carritoActual);
+    nuevoCarrito[widget.index] = itemActualizado;
+    ref.read(carritoTemporalProvider.notifier).state = nuevoCarrito;
+  }
+
+  String _formatearPrecio(double precio) {
+    final precioInt = precio.toInt();
+    return precioInt.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => '.',
+    );
+  }
+
+  Widget _buildImagen() {
+    final path = _imagenPath;
+    if (path != null && path.isNotEmpty) {
+      if (path.startsWith('http')) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(path, fit: BoxFit.cover, width: 56, height: 56,
+              errorBuilder: (_, __, ___) => _imagenPorDefecto()),
+        );
+      } else {
+        final file = File(path);
+        if (file.existsSync()) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(file, fit: BoxFit.cover, width: 56, height: 56),
+          );
+        }
+      }
+    }
+    return _imagenPorDefecto();
+  }
+
+  Widget _imagenPorDefecto() {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary.withOpacity(0.1), AppColors.accent.withOpacity(0.1)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(Icons.inventory_2_outlined, size: 24, color: AppColors.primary),
+    );
+  }
+
+  Widget _buildStepper(String sabor, int qty) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _botonCircular(Icons.remove, qty > 0 ? () => _cambiar(sabor, -1) : null),
+        Container(
+          width: 44,
+          alignment: Alignment.center,
+          child: Text('$qty',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        ),
+        _botonCircular(Icons.add, () => _cambiar(sabor, 1)),
+      ],
+    );
+  }
+
+  Widget _botonCircular(IconData icon, VoidCallback? onTap) {
+    final habilitado = onTap != null;
+    return Material(
+      color: habilitado ? AppColors.accent : AppColors.border,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 20, color: habilitado ? Colors.white : AppColors.textSecondary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeccionCantidades() {
+    final sabores = _cantidades.keys.toList();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          if (item.tieneSabores)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: Text('Distribuir por sabor:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+            ),
+          ...sabores.map((sabor) {
+            final qty = _cantidades[sabor] ?? 0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(item.tieneSabores ? sabor : 'Cantidad',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+                  ),
+                  _buildStepper(sabor, qty),
+                ],
+              ),
+            );
+          }).toList(),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.accentLight,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('$_total unidades',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                Text('\$${_formatearPrecio(_total * item.precioUnitario)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.accent)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final expandido = ref.watch(carritoItemExpandidoProvider) == widget.index;
+    final tieneDescuento = item.descuento != null && item.descuento!.tieneDescuento;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: tieneDescuento
+                  ? AppColors.success.withOpacity(0.5)
+                  : (expandido ? AppColors.primary : AppColors.border),
+              width: tieneDescuento || expandido ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () {
+                  final actual = ref.read(carritoItemExpandidoProvider);
+                  ref.read(carritoItemExpandidoProvider.notifier).state =
+                      actual == widget.index ? null : widget.index;
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      _buildImagen(),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.nombreProducto,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textPrimary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 4),
+                            if (item.tieneSabores)
+                              Text(
+                                item.cantidadPorSabor.entries.map((e) => '${e.key} (${e.value})').join(', '),
+                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            Row(
+                              children: [
+                                Container(
+                                  margin: const EdgeInsets.only(top: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
+                                  child: Text('${item.cantidadTotal} uds',
+                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                                ),
+                                const SizedBox(width: 8),
+                                if (tieneDescuento) ...[
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.textSecondary.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text('\$${_formatearPrecio(item.subtotalSinDescuento)}',
+                                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary,
+                                            decoration: TextDecoration.lineThrough)),
+                                  ),
+                                  const SizedBox(width: 4),
+                                ],
+                                Container(
+                                  margin: const EdgeInsets.only(top: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(color: AppColors.accentLight, borderRadius: BorderRadius.circular(6)),
+                                  child: Text('\$${_formatearPrecio(item.subtotal)}',
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        children: [
+                          IconButton(
+                            icon: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: tieneDescuento ? AppColors.success.withOpacity(0.1) : AppColors.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(tieneDescuento ? Icons.discount : Icons.local_offer_outlined,
+                                  color: tieneDescuento ? AppColors.success : AppColors.primary, size: 18),
+                            ),
+                            onPressed: widget.onDescuento,
+                            tooltip: 'Descuento',
+                          ),
+                          IconButton(
+                            icon: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                              child: const Icon(Icons.delete_outline, color: AppColors.error, size: 18),
+                            ),
+                            onPressed: widget.onEliminar,
+                            tooltip: 'Eliminar',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (tieneDescuento && !expandido)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.local_offer, color: AppColors.success, size: 14),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Descuento ${item.descuento!.toString()}${item.descuento!.motivo != null ? " - ${item.descuento!.motivo}" : ""}',
+                          style: const TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      Text('Ahorras \$${_formatearPrecio(item.montoDescuento)}',
+                          style: const TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              AnimatedCrossFade(
+                duration: const Duration(milliseconds: 250),
+                crossFadeState: expandido ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                firstChild: const SizedBox(width: double.infinity),
+                secondChild: _buildSeccionCantidades(),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

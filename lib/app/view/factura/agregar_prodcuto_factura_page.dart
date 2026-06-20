@@ -37,6 +37,7 @@ final categoriaSeleccionadaProvider = Provider<String?>((ref) {
 final carritoTemporalProvider = StateProvider<List<ItemFacturaModel>>((ref) => []);
 final productoResaltadoProvider = StateProvider<String?>((ref) => null);
 final productoIndexScrollProvider = StateProvider<int?>((ref) => null);
+final productoExpandidoProvider = StateProvider<String?>((ref) => null);
 
 // ============= PÁGINA =============
 class AgregarProductoFacturaPage extends ConsumerStatefulWidget {
@@ -80,14 +81,6 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
       controller.dispose();
     }
     super.dispose();
-  }
-
-  String _formatearPrecio(double precio) {
-    final precioInt = precio.toInt();
-    return precioInt.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-          (match) => '.',
-    );
   }
 
   void _mostrarSnackBar(String mensaje, {bool isSuccess = false, bool isError = false}) {
@@ -348,7 +341,7 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
       Navigator.pop(context);
 
       if (producto != null) {
-        if (await Vibration.hasVibrator() ?? false) {
+        if (await Vibration.hasVibrator()) {
           Vibration.vibrate(pattern: [0, 100, 50, 100], intensities: [0, 200, 0, 255]);
         }
         final categoriasAsync = ref.read(categoriasProvider);
@@ -378,7 +371,7 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
           }
         });
       } else {
-        if (await Vibration.hasVibrator() ?? false) {
+        if (await Vibration.hasVibrator()) {
           Vibration.vibrate(pattern: [0, 300, 100, 300], intensities: [0, 128, 0, 128]);
         }
         _mostrarSnackBar('No se encontró producto con código: $codigoBarras', isError: true);
@@ -714,7 +707,7 @@ class _AgregarProductoFacturaPageState extends ConsumerState<AgregarProductoFact
 }
 
 // ============= WIDGET DE TARJETA DE PRODUCTO (LISTA) =============
-class _ProductoCard extends StatelessWidget {
+class _ProductoCard extends ConsumerStatefulWidget {
   final ProductoModel producto;
   final Function(ItemFacturaModel) onSelected;
   final bool estaEnCarrito;
@@ -728,6 +721,65 @@ class _ProductoCard extends StatelessWidget {
     this.itemEnCarrito,
     this.estaResaltado = false,
   });
+
+  @override
+  ConsumerState<_ProductoCard> createState() => _ProductoCardState();
+}
+
+class _ProductoCardState extends ConsumerState<_ProductoCard> {
+  final Map<String, int> _cantidades = {};
+
+  ProductoModel get producto => widget.producto;
+  bool get estaEnCarrito => widget.estaEnCarrito;
+  bool get estaResaltado => widget.estaResaltado;
+  ItemFacturaModel? get itemEnCarrito => widget.itemEnCarrito;
+  Function(ItemFacturaModel) get onSelected => widget.onSelected;
+
+  List<String> get _sabores =>
+      producto.sabores.isEmpty ? ['Único'] : producto.sabores;
+  bool get _tieneSabores => producto.sabores.length > 1;
+  int get _total => _cantidades.values.fold(0, (a, b) => a + b);
+
+  @override
+  void initState() {
+    super.initState();
+    for (final sabor in _sabores) {
+      _cantidades[sabor] = 0;
+    }
+    final item = widget.itemEnCarrito;
+    if (item != null) {
+      if (_tieneSabores) {
+        item.cantidadPorSabor.forEach((sabor, qty) {
+          if (_cantidades.containsKey(sabor)) _cantidades[sabor] = qty;
+        });
+      } else {
+        _cantidades[_sabores.first] = item.cantidadTotal;
+      }
+    }
+  }
+
+  void _cambiar(String sabor, int delta) {
+    setState(() {
+      final nuevo = (_cantidades[sabor] ?? 0) + delta;
+      _cantidades[sabor] = nuevo < 0 ? 0 : nuevo;
+    });
+    _sincronizarCarrito();
+  }
+
+  void _sincronizarCarrito() {
+    final total = _total;
+    final item = ItemFacturaModel(
+      productoId: producto.id!,
+      nombreProducto: producto.nombre,
+      precioUnitario: producto.precio,
+      cantidadTotal: total,
+      cantidadPorSabor: _tieneSabores
+          ? Map<String, int>.from(_cantidades)
+          : {_sabores.first: total},
+      tieneSabores: _tieneSabores,
+    );
+    onSelected(item);
+  }
 
   String _formatearPrecio(double precio) {
     final precioInt = precio.toInt();
@@ -791,252 +843,9 @@ class _ProductoCard extends StatelessWidget {
     );
   }
 
-  void _mostrarDialogoAgregar(BuildContext context) {
-    final TextEditingController cantidadTotalController = TextEditingController(text: '0');
-    final Map<String, TextEditingController> controllersPorSabor = {};
-    final Map<String, int> cantidadPorSabor = {};
-
-    for (var sabor in producto.sabores) {
-      controllersPorSabor[sabor] = TextEditingController(text: '0');
-      cantidadPorSabor[sabor] = 0;
-    }
-
-    int calcularTotal() {
-      return cantidadPorSabor.values.fold(0, (sum, qty) => sum + qty);
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 12),
-                      decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        _construirImagenProducto(producto.imagenPath, size: 56),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
-                              Text('\$${_formatearPrecio(producto.precio)} c/u', style: const TextStyle(fontSize: 14, color: AppColors.accent)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (producto.sabores.length == 1) ...[
-                          TextField(
-                            controller: cantidadTotalController,
-                            keyboardType: TextInputType.number,
-                            autofocus: true,
-                            decoration: InputDecoration(
-                              labelText: 'Cantidad',
-                              labelStyle: const TextStyle(color: AppColors.textSecondary),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                              ),
-                              prefixIcon: const Icon(Icons.inventory, color: AppColors.primary),
-                            ),
-                            onTap: () {
-                              if (cantidadTotalController.text == '0') cantidadTotalController.clear();
-                            },
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        if (producto.sabores.length > 1) ...[
-                          const Text('Distribuir por sabor:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
-                          const SizedBox(height: 16),
-                          ...producto.sabores.map((sabor) {
-                            final controller = controllersPorSabor[sabor]!;
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Row(
-                                children: [
-                                  Expanded(child: Text(sabor, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary))),
-                                  SizedBox(
-                                    width: 80,
-                                    child: TextField(
-                                      controller: controller,
-                                      keyboardType: TextInputType.number,
-                                      textAlign: TextAlign.center,
-                                      decoration: InputDecoration(
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                                        ),
-                                        isDense: true,
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                                      ),
-                                      onTap: () {
-                                        if (controller.text == '0') controller.clear();
-                                      },
-                                      onChanged: (value) {
-                                        cantidadPorSabor[sabor] = int.tryParse(value) ?? 0;
-                                        setState(() {});
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          const Divider(height: 24),
-                        ],
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.accentLight,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.accent.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    producto.sabores.length == 1
-                                        ? '${int.tryParse(cantidadTotalController.text) ?? 0} unidades'
-                                        : '${calcularTotal()} unidades',
-                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                                  ),
-                                  const Text('TOTAL:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                                ],
-                              ),
-                              Text(
-                                producto.sabores.length == 1
-                                    ? '\$${_formatearPrecio((int.tryParse(cantidadTotalController.text) ?? 0) * producto.precio)}'
-                                    : '\$${_formatearPrecio(calcularTotal() * producto.precio)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: AppColors.accent),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: const BorderSide(color: AppColors.border),
-                              ),
-                            ),
-                            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              int cantidadTotal;
-                              if (producto.sabores.length == 1) {
-                                cantidadTotal = int.tryParse(cantidadTotalController.text) ?? 0;
-                                if (cantidadTotal <= 0) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('La cantidad debe ser mayor a 0')),
-                                  );
-                                  return;
-                                }
-                              } else {
-                                cantidadTotal = calcularTotal();
-                                if (cantidadTotal <= 0) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Debes agregar al menos una unidad')),
-                                  );
-                                  return;
-                                }
-                              }
-                              final nuevoItem = ItemFacturaModel(
-                                productoId: producto.id!,
-                                nombreProducto: producto.nombre,
-                                precioUnitario: producto.precio,
-                                cantidadTotal: cantidadTotal,
-                                cantidadPorSabor: producto.sabores.length > 1 ? cantidadPorSabor : {producto.sabores[0]: cantidadTotal},
-                                tieneSabores: producto.sabores.length > 1,
-                              );
-                              onSelected(nuevoItem);
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Row(
-                                    children: [
-                                      const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                                      const SizedBox(width: 12),
-                                      Text('${producto.nombre} agregado'),
-                                    ],
-                                  ),
-                                  backgroundColor: AppColors.accent,
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  margin: const EdgeInsets.all(16),
-                                  duration: const Duration(milliseconds: 1500),
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.accent,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: const Text('Agregar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final expandido = ref.watch(productoExpandidoProvider) == producto.id;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.only(bottom: 12),
@@ -1045,85 +854,201 @@ class _ProductoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         elevation: estaResaltado ? 4 : 0,
         shadowColor: estaResaltado ? AppColors.accent.withOpacity(0.3) : Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _mostrarDialogoAgregar(context),
-          onLongPress: () => _verImagenProducto(context, producto),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: estaEnCarrito ? AppColors.accent : (estaResaltado ? AppColors.accent : AppColors.border),
-                width: estaEnCarrito || estaResaltado ? 2 : 1,
-              ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: estaEnCarrito
+                  ? AppColors.accent
+                  : (expandido || estaResaltado ? AppColors.primary : AppColors.border),
+              width: estaEnCarrito || expandido || estaResaltado ? 2 : 1,
             ),
-            child: Row(
-              children: [
-                _construirImagenProducto(producto.imagenPath),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: Column(
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () {
+                  final actual = ref.read(productoExpandidoProvider);
+                  ref.read(productoExpandidoProvider.notifier).state =
+                      actual == producto.id ? null : producto.id;
+                },
+                onLongPress: () => _verImagenProducto(context, producto),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
                     children: [
-                      Text(
-                        producto.nombre,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      if (producto.sabores.isNotEmpty)
-                        Text(
-                          producto.sabores.join(' • '),
-                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.accent.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
+                      _construirImagenProducto(producto.imagenPath),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              producto.nombre,
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            child: Text(
-                              '\$${_formatearPrecio(producto.precio)}',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accent),
-                            ),
-                          ),
-                          if (estaEnCarrito && itemEnCarrito != null) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
-                              child: Text(
-                                '${itemEnCarrito!.cantidadTotal} uds',
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                            const SizedBox(height: 4),
+                            if (producto.sabores.isNotEmpty)
+                              Text(
+                                producto.sabores.join(' • '),
+                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '\$${_formatearPrecio(producto.precio)}',
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accent),
+                                  ),
+                                ),
+                                if (estaEnCarrito && itemEnCarrito != null) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
+                                    child: Text(
+                                      '${itemEnCarrito!.cantidadTotal} uds',
+                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
-                        ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: estaEnCarrito ? AppColors.accent : AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          expandido ? Icons.expand_less : (estaEnCarrito ? Icons.check : Icons.add),
+                          color: estaEnCarrito ? Colors.white : AppColors.primary,
+                          size: 20,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: estaEnCarrito ? AppColors.accent : AppColors.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
+              ),
+              AnimatedCrossFade(
+                duration: const Duration(milliseconds: 250),
+                crossFadeState: expandido ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                firstChild: const SizedBox(width: double.infinity),
+                secondChild: _buildSeccionSabores(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeccionSabores() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          if (_tieneSabores)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: Text(
+                'Distribuir por sabor:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
+              ),
+            ),
+          ..._sabores.map((sabor) {
+            final qty = _cantidades[sabor] ?? 0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _tieneSabores ? sabor : 'Cantidad',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                    ),
                   ),
-                  child: Icon(
-                    estaEnCarrito ? Icons.check : Icons.add,
-                    color: estaEnCarrito ? Colors.white : AppColors.primary,
-                    size: 20,
-                  ),
+                  _buildStepper(sabor, qty),
+                ],
+              ),
+            );
+          }).toList(),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.accentLight,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$_total unidades',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
+                ),
+                Text(
+                  '\$${_formatearPrecio(_total * producto.precio)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.accent),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepper(String sabor, int qty) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _botonCircular(Icons.remove, qty > 0 ? () => _cambiar(sabor, -1) : null),
+        Container(
+          width: 44,
+          alignment: Alignment.center,
+          child: Text(
+            '$qty',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+        ),
+        _botonCircular(Icons.add, () => _cambiar(sabor, 1)),
+      ],
+    );
+  }
+
+  Widget _botonCircular(IconData icon, VoidCallback? onTap) {
+    final habilitado = onTap != null;
+    return Material(
+      color: habilitado ? AppColors.accent : AppColors.border,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(
+            icon,
+            size: 20,
+            color: habilitado ? Colors.white : AppColors.textSecondary,
           ),
         ),
       ),
@@ -1143,8 +1068,8 @@ class _ProductoCard extends StatelessWidget {
       );
     }
   }
-}
 
+}
 // ============= WIDGET DE TARJETA DE PRODUCTO (GRID) =============
 class _ProductoCardGrid extends StatelessWidget {
   final ProductoModel producto;
