@@ -45,6 +45,16 @@ class FacturasNotifier extends StateNotifier<AsyncValue<List<FacturaModel>>> {
     }
   }
 
+  Future<void> cargarFacturasPorFecha(DateTime fecha) async {
+    state = const AsyncValue.loading();
+    try {
+      final facturas = await _dbHelper.obtenerFacturasPorFecha(fecha);
+      state = AsyncValue.data(facturas);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
   // ✅ AGREGAR UNA NUEVA FACTURA SIN RECARGAR TODO
   void agregarFactura(FacturaModel factura) {
     state.whenData((facturas) {
@@ -60,7 +70,7 @@ class FacturasNotifier extends StateNotifier<AsyncValue<List<FacturaModel>>> {
       if (index != -1) {
         final nuevasFacturas = [...facturas];
         nuevasFacturas[index] = facturaActualizada;
-        nuevasFacturas.sort((a, b) => b.fecha.compareTo(a.fecha)); // Reordenar
+        nuevasFacturas.sort((a, b) => b.fechaCreacion.compareTo(a.fechaCreacion));
         state = AsyncValue.data(nuevasFacturas);
       }
     });
@@ -87,9 +97,9 @@ final facturasFiltradasProvider = Provider<List<FacturaModel>>((ref) {
   return facturasAsync.whenData((facturas) {
     final fecha = fechaState.fechaSeleccionada;
     return facturas.where((factura) {
-      return factura.fecha.year == fecha.year &&
-          factura.fecha.month == fecha.month &&
-          factura.fecha.day == fecha.day;
+      return factura.fechaEntrega.year == fecha.year &&
+          factura.fechaEntrega.month == fecha.month &&
+          factura.fechaEntrega.day == fecha.day;
     }).toList();
   }).maybeWhen(
     data: (data) => data,
@@ -114,21 +124,16 @@ final facturasFiltradasConBusquedaProvider = Provider<List<FacturaModel>>((ref) 
   final searchQuery = ref.watch(searchQueryFacturasProvider).toLowerCase();
 
   return facturas.where((factura) {
-    // Filtrar por fecha
-    final mismoDia = factura.fecha.year == fechaState.fechaSeleccionada.year &&
-        factura.fecha.month == fechaState.fechaSeleccionada.month &&
-        factura.fecha.day == fechaState.fechaSeleccionada.day;
+    final mismoDia = factura.fechaEntrega.year == fechaState.fechaSeleccionada.year &&
+        factura.fechaEntrega.month == fechaState.fechaSeleccionada.month &&
+        factura.fechaEntrega.day == fechaState.fechaSeleccionada.day;
 
     if (!mismoDia) return false;
-
-    // Si no hay búsqueda, mostrar todos
     if (searchQuery.isEmpty) return true;
 
-    // Filtrar por búsqueda
     final nombreCliente = factura.nombreCliente.toLowerCase();
     final negocio = (factura.negocioCliente ?? '').toLowerCase();
     final direccion = factura.direccionCliente.toLowerCase();
-
 
     return nombreCliente.contains(searchQuery) ||
         negocio.contains(searchQuery) ||

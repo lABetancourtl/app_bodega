@@ -166,10 +166,11 @@ class FacturaModel {
   final String? negocioCliente;
   final String? rutaCliente;
   final String? observacionesCliente;
-  final DateTime fecha;
+  final DateTime fechaCreacion;
+  final DateTime fechaEntrega;
   final List<ItemFacturaModel> items;
   final String estado;
-  final DescuentoModel? descuentoGlobal; // ← NUEVO: Descuento a toda la factura
+  final DescuentoModel? descuentoGlobal;
 
   FacturaModel({
     this.id,
@@ -180,7 +181,8 @@ class FacturaModel {
     this.negocioCliente,
     this.rutaCliente,
     this.observacionesCliente,
-    required this.fecha,
+    required this.fechaCreacion,
+    required this.fechaEntrega,
     required this.items,
     this.estado = 'pendiente',
     this.descuentoGlobal,
@@ -227,7 +229,10 @@ class FacturaModel {
       'negocioCliente': negocioCliente,
       'rutaCliente': rutaCliente,
       'observacionesCliente': observacionesCliente,
-      'fecha': fecha.toIso8601String(),
+      'fechaCreacion': fechaCreacion.toIso8601String(),
+      'fechaEntrega': fechaEntrega.toIso8601String(),
+      // Mantener 'fecha' para compatibilidad con documentos viejos en Firestore
+      'fecha': fechaCreacion.toIso8601String(),
       'estado': estado,
       'total': total,
       'subtotalSinDescuentos': subtotalSinDescuentos,
@@ -237,6 +242,10 @@ class FacturaModel {
   }
 
   factory FacturaModel.fromMap(Map<String, dynamic> map, String docId, List<ItemFacturaModel> items) {
+    // Compatibilidad con documentos viejos que solo tienen 'fecha'
+    final fechaBase = DateTime.parse(
+      (map['fechaCreacion'] ?? map['fecha']) as String,
+    );
     return FacturaModel(
       id: docId,
       clienteId: map['clienteId'] as String,
@@ -246,7 +255,10 @@ class FacturaModel {
       negocioCliente: map['negocioCliente'] as String?,
       rutaCliente: map['rutaCliente'] as String?,
       observacionesCliente: map['observacionesCliente'] as String?,
-      fecha: DateTime.parse(map['fecha'] as String),
+      fechaCreacion: fechaBase,
+      fechaEntrega: map['fechaEntrega'] != null
+          ? DateTime.parse(map['fechaEntrega'] as String)
+          : fechaBase,
       items: items,
       estado: map['estado'] as String? ?? 'pendiente',
       descuentoGlobal: map['descuentoGlobal'] != null
@@ -264,11 +276,12 @@ class FacturaModel {
     String? negocioCliente,
     String? rutaCliente,
     String? observacionesCliente,
-    DateTime? fecha,
+    DateTime? fechaCreacion,
+    DateTime? fechaEntrega,
     List<ItemFacturaModel>? items,
     String? estado,
     DescuentoModel? descuentoGlobal,
-    bool eliminarDescuentoGlobal = false, // Para poder remover el descuento
+    bool eliminarDescuentoGlobal = false,
   }) {
     return FacturaModel(
       id: id ?? this.id,
@@ -279,7 +292,8 @@ class FacturaModel {
       negocioCliente: negocioCliente ?? this.negocioCliente,
       rutaCliente: rutaCliente ?? this.rutaCliente,
       observacionesCliente: observacionesCliente ?? this.observacionesCliente,
-      fecha: fecha ?? this.fecha,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      fechaEntrega: fechaEntrega ?? this.fechaEntrega,
       items: items ?? this.items,
       estado: estado ?? this.estado,
       descuentoGlobal: eliminarDescuentoGlobal ? null : (descuentoGlobal ?? this.descuentoGlobal),

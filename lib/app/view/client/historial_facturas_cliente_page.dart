@@ -82,7 +82,7 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
     _ticketPromedio = _totalGeneral / facturas.length;
 
     // Última compra (primera en la lista ya que están ordenadas por fecha desc)
-    _ultimaCompra = facturas.first.fecha;
+    _ultimaCompra = facturas.first.fechaCreacion;
 
     // Contar productos más comprados
     _productosContador = {};
@@ -952,11 +952,11 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      _formatearFecha(factura.fecha),
+                                      _formatearFecha(factura.fechaCreacion),
                                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
                                     ),
                                     Text(
-                                      _formatearHora(factura.fecha),
+                                      _formatearHora(factura.fechaCreacion),
                                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                                     ),
                                   ],
@@ -1067,7 +1067,7 @@ class _HistorialFacturasClientePageState extends State<HistorialFacturasClienteP
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
               Text(
-              '${_formatearFecha(factura.fecha)} - ${_formatearHora(factura.fecha)}',
+              '${_formatearFecha(factura.fechaCreacion)} - ${_formatearHora(factura.fechaCreacion)}',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
               ),
               Text(

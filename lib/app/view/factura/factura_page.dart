@@ -81,6 +81,7 @@ class FacturaPage extends ConsumerWidget {
 
     if (picked != null) {
       ref.read(fechaProvider.notifier).setFecha(picked);
+      ref.read(facturasStateProvider.notifier).cargarFacturasPorFecha(picked);
     }
   }
 
@@ -285,7 +286,7 @@ class FacturaPage extends ConsumerWidget {
   }
 
   Future<DateTime?> _mostrarSelectorFechaImpresion(BuildContext context, FacturaModel factura) async {
-    DateTime fechaSeleccionada = factura.fecha;
+    DateTime fechaSeleccionada = factura.fechaEntrega;
 
     return await showModalBottomSheet<DateTime>(
       context: context,
@@ -615,7 +616,6 @@ class FacturaPage extends ConsumerWidget {
           );
         }
 
-        // Crear factura con la fecha seleccionada
         final facturaConFechaModificada = FacturaModel(
           id: factura.id,
           clienteId: factura.clienteId,
@@ -625,10 +625,10 @@ class FacturaPage extends ConsumerWidget {
           negocioCliente: factura.negocioCliente,
           observacionesCliente: factura.observacionesCliente,
           rutaCliente: factura.rutaCliente,
-          fecha: fechaSeleccionada,
+          fechaCreacion: factura.fechaCreacion,
+          fechaEntrega: fechaSeleccionada,
           items: factura.items,
           estado: factura.estado,
-          // total: factura.total,
         );
 
         await EscPosService.imprimirTicketBluetoothConDispositivo(facturaConFechaModificada, impresoraSeleccionada);
@@ -1234,7 +1234,6 @@ class FacturaPage extends ConsumerWidget {
 
         // Imprimir cada factura
         for (int i = 0; i < facturas.length; i++) {
-          // Crear una copia exacta de la factura con la fecha modificada
           final facturaParaImprimir = FacturaModel(
             id: facturas[i].id,
             clienteId: facturas[i].clienteId,
@@ -1244,10 +1243,10 @@ class FacturaPage extends ConsumerWidget {
             negocioCliente: facturas[i].negocioCliente,
             observacionesCliente: facturas[i].observacionesCliente,
             rutaCliente: facturas[i].rutaCliente,
-            fecha: fechaParaImprimir,
+            fechaCreacion: facturas[i].fechaCreacion,
+            fechaEntrega: fechaParaImprimir,
             items: facturas[i].items,
             estado: facturas[i].estado,
-            // total: facturas[i].total,
           );
 
           // Generar bytes y enviar
@@ -1388,8 +1387,8 @@ class FacturaPage extends ConsumerWidget {
     final fechaState = ref.watch(fechaProvider);
     final isSearching = ref.watch(isSearchingFacturasProvider);
     final searchQuery = ref.watch(searchQueryFacturasProvider);
-    final modoSeleccion = ref.watch(modoSeleccionProvider); // AGREGAR
-    final facturasSeleccionadas = ref.watch(facturasSeleccionadasProvider); // AGREGAR
+    final modoSeleccion = ref.watch(modoSeleccionProvider);
+    final facturasSeleccionadas = ref.watch(facturasSeleccionadasProvider);
 
     final totalDia = facturasFiltradas.fold(0.0, (sum, factura) {
       return sum + factura.items.fold(0.0, (itemSum, item) => itemSum + item.subtotal);
@@ -1780,7 +1779,7 @@ class FacturaPage extends ConsumerWidget {
                                           Icon(Icons.access_time, size: 12, color: AppColors.textSecondary),
                                           const SizedBox(width: 4),
                                           Text(
-                                            '${factura.fecha.hour.toString().padLeft(2, '0')}:${factura.fecha.minute.toString().padLeft(2, '0')}',
+                                            '${factura.fechaCreacion.hour.toString().padLeft(2, '0')}:${factura.fechaCreacion.minute.toString().padLeft(2, '0')}',
                                             style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                                           ),
                                           const SizedBox(width: 12),

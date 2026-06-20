@@ -728,6 +728,7 @@ class _ProductoCard extends ConsumerStatefulWidget {
 
 class _ProductoCardState extends ConsumerState<_ProductoCard> {
   final Map<String, int> _cantidades = {};
+  final Map<String, TextEditingController> _controllers = {};
 
   ProductoModel get producto => widget.producto;
   bool get estaEnCarrito => widget.estaEnCarrito;
@@ -745,24 +746,40 @@ class _ProductoCardState extends ConsumerState<_ProductoCard> {
     super.initState();
     for (final sabor in _sabores) {
       _cantidades[sabor] = 0;
+      _controllers[sabor] = TextEditingController(text: '0');
     }
     final item = widget.itemEnCarrito;
     if (item != null) {
       if (_tieneSabores) {
         item.cantidadPorSabor.forEach((sabor, qty) {
-          if (_cantidades.containsKey(sabor)) _cantidades[sabor] = qty;
+          if (_cantidades.containsKey(sabor)) {
+            _cantidades[sabor] = qty;
+            _controllers[sabor]?.text = '$qty';
+          }
         });
       } else {
-        _cantidades[_sabores.first] = item.cantidadTotal;
+        final qty = item.cantidadTotal;
+        _cantidades[_sabores.first] = qty;
+        _controllers[_sabores.first]?.text = '$qty';
       }
     }
   }
 
+  @override
+  void dispose() {
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
   void _cambiar(String sabor, int delta) {
+    final nuevo = (_cantidades[sabor] ?? 0) + delta;
+    final valor = nuevo < 0 ? 0 : nuevo;
     setState(() {
-      final nuevo = (_cantidades[sabor] ?? 0) + delta;
-      _cantidades[sabor] = nuevo < 0 ? 0 : nuevo;
+      _cantidades[sabor] = valor;
     });
+    _controllers[sabor]?.text = '$valor';
     _sincronizarCarrito();
   }
 
@@ -1022,12 +1039,34 @@ class _ProductoCardState extends ConsumerState<_ProductoCard> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _botonCircular(Icons.remove, qty > 0 ? () => _cambiar(sabor, -1) : null),
-        Container(
-          width: 44,
-          alignment: Alignment.center,
-          child: Text(
-            '$qty',
+        SizedBox(
+          width: 56,
+          child: TextField(
+            controller: _controllers[sabor],
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 4),
+            ),
+            onTap: () {
+              if (_controllers[sabor]?.text == '0') _controllers[sabor]?.clear();
+            },
+            onChanged: (value) {
+              final nuevo = int.tryParse(value) ?? 0;
+              final valor = nuevo < 0 ? 0 : nuevo;
+              setState(() {
+                _cantidades[sabor] = valor;
+              });
+              _sincronizarCarrito();
+            },
+            onEditingComplete: () {
+              final valor = _cantidades[sabor] ?? 0;
+              _controllers[sabor]?.text = '$valor';
+              FocusScope.of(context).unfocus();
+            },
           ),
         ),
         _botonCircular(Icons.add, () => _cambiar(sabor, 1)),

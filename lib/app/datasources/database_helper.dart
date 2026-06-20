@@ -330,20 +330,8 @@ class DatabaseHelper {
 
   Future<String> insertarFactura(FacturaModel factura) async {
     try {
-      final facturaData = {
-        'clienteId': factura.clienteId,
-        'nombreCliente': factura.nombreCliente,
-        'direccionCliente': factura.direccionCliente,
-        'telefonoCliente': factura.telefonoCliente,
-        'negocioCliente': factura.negocioCliente,
-        'rutaCliente': factura.rutaCliente,
-        'observacionesCliente': factura.observacionesCliente,
-        'fecha': factura.fecha.toIso8601String(),
-        'estado': factura.estado,
-        'total': factura.total,
-        'items': factura.items.map((item) => item.toMap()).toList(),
-        'descuentoGlobal': factura.descuentoGlobal?.toMap(),
-      };
+      final facturaData = factura.toMap()
+        ..['items'] = factura.items.map((item) => item.toMap()).toList();
 
       final docRef = await _firestore
           .collection(facturasCol)
@@ -389,6 +377,52 @@ class DatabaseHelper {
     }
   }
 
+  // Carga facturas cuya fechaEntrega corresponda al día indicado.
+  // Hace dos consultas en paralelo para cubrir documentos viejos (campo 'fecha')
+  // y documentos nuevos (campo 'fechaEntrega'), luego desduplicar por ID.
+  Future<List<FacturaModel>> obtenerFacturasPorFecha(DateTime fecha) async {
+    try {
+      final inicio = DateTime(fecha.year, fecha.month, fecha.day).toIso8601String();
+      final fin   = DateTime(fecha.year, fecha.month, fecha.day, 23, 59, 59, 999).toIso8601String();
+
+      final resultados = await Future.wait([
+        _firestore.collection(facturasCol)
+            .where('fechaEntrega', isGreaterThanOrEqualTo: inicio)
+            .where('fechaEntrega', isLessThanOrEqualTo: fin)
+            .get(),
+        _firestore.collection(facturasCol)
+            .where('fecha', isGreaterThanOrEqualTo: inicio)
+            .where('fecha', isLessThanOrEqualTo: fin)
+            .get(),
+      ]);
+
+      final Map<String, FacturaModel> porId = {};
+
+      for (final snapshot in resultados) {
+        for (final doc in snapshot.docs) {
+          if (porId.containsKey(doc.id)) continue;
+          final data = doc.data() as Map<String, dynamic>;
+          final items = (data['items'] as List<dynamic>? ?? [])
+              .map((item) => ItemFacturaModel.fromMap(item as Map<String, dynamic>))
+              .toList();
+          porId[doc.id] = FacturaModel.fromMap(data, doc.id, items);
+        }
+      }
+
+      // Filtro final en memoria: solo los que realmente caen en ese día de entrega
+      final facturas = porId.values.where((f) =>
+          f.fechaEntrega.year  == fecha.year &&
+          f.fechaEntrega.month == fecha.month &&
+          f.fechaEntrega.day   == fecha.day,
+      ).toList()
+        ..sort((a, b) => b.fechaCreacion.compareTo(a.fechaCreacion));
+
+      return facturas;
+    } catch (e) {
+      throw Exception('Error al obtener facturas por fecha: $e');
+    }
+  }
+
   Future<FacturaModel?> obtenerFacturaPorId(String id) async {
     try {
       final doc = await _firestore
@@ -421,20 +455,9 @@ class DatabaseHelper {
           .collection(facturasCol)
           .doc(factura.id);
 
-      await docRef.update({
-        'clienteId': factura.clienteId,
-        'nombreCliente': factura.nombreCliente,
-        'direccionCliente': factura.direccionCliente,
-        'telefonoCliente': factura.telefonoCliente,
-        'negocioCliente': factura.negocioCliente,
-        'rutaCliente': factura.rutaCliente,
-        'observacionesCliente': factura.observacionesCliente,
-        'fecha': factura.fecha.toIso8601String(),
-        'estado': factura.estado,
-        'total': factura.total,
-        'items': factura.items.map((item) => item.toMap()).toList(),
-        'descuentoGlobal': factura.descuentoGlobal?.toMap(),
-      });
+      final data = factura.toMap()
+        ..['items'] = factura.items.map((item) => item.toMap()).toList();
+      await docRef.update(data);
     } catch (e) {
       throw Exception('Error al actualizar factura: $e');
     }

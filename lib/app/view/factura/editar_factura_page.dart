@@ -398,7 +398,8 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
       id: widget.factura.id,
       clienteId: widget.factura.clienteId,
       nombreCliente: widget.factura.nombreCliente,
-      fecha: widget.factura.fecha,
+      fechaCreacion: widget.factura.fechaCreacion,
+      fechaEntrega: widget.factura.fechaEntrega,
       items: items,
       estado: widget.factura.estado,
       negocioCliente: widget.factura.negocioCliente,
@@ -496,7 +497,7 @@ class _EditarFacturaPageState extends State<EditarFacturaPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Fecha: ${_formatearFecha(widget.factura.fecha)}',
+                          'Fecha: ${_formatearFecha(widget.factura.fechaCreacion)}',
                           style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                         ),
                       ],

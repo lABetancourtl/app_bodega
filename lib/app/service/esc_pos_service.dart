@@ -86,7 +86,7 @@ class EscPosService {
     // ==================== NÚMERO Y FECHA ====================
     bytes += generator.row([
       PosColumn(
-        text: _formatearFecha(factura.fecha),
+        text: _formatearFecha(factura.fechaCreacion),
         width: 6,
         styles: const PosStyles(align: PosAlign.left),
       ),
@@ -569,7 +569,7 @@ class EscPosService {
                 pw.SizedBox(height: 8),
 
                 pw.Text(
-                  _formatearFecha(factura.fecha),
+                  _formatearFecha(factura.fechaCreacion),
                   style: pw.TextStyle(
                     fontSize: 12,
                     fontWeight: pw.FontWeight.bold,
@@ -799,7 +799,7 @@ class EscPosService {
 
     buffer.writeln(_formatearLinea(
       'No: ${factura.id ?? '0000'}',
-      _formatearFecha(factura.fecha),
+      _formatearFecha(factura.fechaCreacion),
       ancho,
     ));
     buffer.writeln('-' * ancho);

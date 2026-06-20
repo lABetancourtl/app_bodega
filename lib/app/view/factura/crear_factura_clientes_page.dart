@@ -32,9 +32,12 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
   List<ItemFacturaModel> items = [];
   bool esFacturaLimpia = false;
 
+  late DateTime _fechaEntrega;
+
   @override
   void initState() {
     super.initState();
+    _fechaEntrega = DateTime.now().add(const Duration(days: 1));
 
     if (widget.itemsIniciales != null && widget.itemsIniciales!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -46,6 +49,69 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
           isSuccess: true,
         );
       });
+    }
+  }
+
+  bool _esHoy(DateTime fecha) {
+    final hoy = DateTime.now();
+    return fecha.year == hoy.year && fecha.month == hoy.month && fecha.day == hoy.day;
+  }
+
+  bool _esManana(DateTime fecha) {
+    final manana = DateTime.now().add(const Duration(days: 1));
+    return fecha.year == manana.year && fecha.month == manana.month && fecha.day == manana.day;
+  }
+
+  String _formatearFechaCorta(DateTime fecha) {
+    final meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    return '${fecha.day} ${meses[fecha.month - 1]}';
+  }
+
+  Widget _buildChipFecha(String label, bool seleccionado, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: seleccionado ? AppColors.primary : AppColors.background,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: seleccionado ? AppColors.primary : AppColors.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: seleccionado ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _seleccionarFechaPersonalizada() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaEntrega,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('es', 'ES'),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: AppColors.primary,
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: AppColors.textPrimary,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() => _fechaEntrega = picked);
     }
   }
 
@@ -550,7 +616,6 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
       return;
     }
 
-    // ← CREAR LA FACTURA CON EL DESCUENTO GLOBAL
     final factura = FacturaModel(
       clienteId: esFacturaLimpia ? '' : (clienteSeleccionado!.id ?? ''),
       nombreCliente: clienteSeleccionado!.nombre,
@@ -558,10 +623,11 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
       telefonoCliente: clienteSeleccionado!.telefono,
       negocioCliente: clienteSeleccionado!.nombreNegocio,
       observacionesCliente: clienteSeleccionado!.observaciones,
-      fecha: DateTime.now(),
+      fechaCreacion: DateTime.now(),
+      fechaEntrega: _fechaEntrega,
       items: items,
       estado: 'preventa',
-      descuentoGlobal: descuentoGlobal, // ← AGREGAR ESTA LÍNEA
+      descuentoGlobal: descuentoGlobal,
     );
 
     try {
@@ -993,6 +1059,61 @@ class _CrearFacturaMobileState extends ConsumerState<CrearFacturaMobile> {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ),
+
+          // Selector de fecha de entrega
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.local_shipping_outlined, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Entrega:',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildChipFecha('Hoy', _esHoy(_fechaEntrega), () {
+                    final hoy = DateTime.now();
+                    setState(() => _fechaEntrega = DateTime(hoy.year, hoy.month, hoy.day));
+                  }),
+                  const SizedBox(width: 6),
+                  _buildChipFecha('Manana', _esManana(_fechaEntrega), () {
+                    final manana = DateTime.now().add(const Duration(days: 1));
+                    setState(() => _fechaEntrega = DateTime(manana.year, manana.month, manana.day));
+                  }),
+                  const SizedBox(width: 6),
+                  _buildChipFecha(
+                    (!_esHoy(_fechaEntrega) && !_esManana(_fechaEntrega))
+                        ? _formatearFechaCorta(_fechaEntrega)
+                        : 'Otro',
+                    !_esHoy(_fechaEntrega) && !_esManana(_fechaEntrega),
+                    _seleccionarFechaPersonalizada,
+                  ),
+                  if (_esHoy(_fechaEntrega)) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'URGENTE',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
